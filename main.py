@@ -204,7 +204,7 @@ SP1 = {
 }
 
 
-def build_objs1():
+def build_objs1(seed=0):
     O = []
 
     def add(*a):
@@ -236,17 +236,80 @@ def build_objs1():
     add('study_shelf', "رف الكتب", 35, 2, 3, 1, (76, 48, 26))
     add('mirror', "المراية الكبيرة", 22, 16, 2, 1, (170, 190, 200))
     add('doll', "الدُمية الكبيرة", 10, 7, 1, 1, (200, 150, 160))
-    for o in O:
-        if o.id in TEXTS1:
-            o.kind, (o.title, o.text) = 'note', TEXTS1[o.id]
-        elif o.id in BATTERY1:
-            o.kind, o.where = 'battery', BATTERY1[o.id]
-        elif o.id in SP1:
-            o.__dict__.update(SP1[o.id])
+    randomize_level1(O, seed)
     return O
 
 
-def build_level1():
+KEY_SPOTS1 = ('wardrobe', 'drawer', 'nightstand', 'cabinet', 'fridge', 'bookshelf_l', 'lib_desk', 'hall_table',
+              'shelf_1', 'shelf_2', 'shelf_3', 'sofa', 'k_table')
+FIXED1 = ('desk', 'study_door', 'front_door', 'piano', 'portrait', 'mirror', 'doll')
+HINT_NOTES1 = ('hall_table', 'bookshelf_l', 'lib_desk')
+
+
+def room_name1(o):
+    cx, cy = o.rect.centerx // T, o.rect.centery // T
+    for nm, (x, y, w, h), _c in ROOMS1:
+        if nm != "الممر" and x <= cx < x + w and y <= cy < y + h:
+            return nm
+    return "الممر"
+
+
+def randomize_level1(O, seed):
+    """المفتاح النحاسي والصغير والبطاريات والأوراق بتتحط في أماكن مختلفة في كل لعبة (والورق بيقول المكان الصح)"""
+    rng = random.Random(seed * 13 + 1)
+    by = {o.id: o for o in O}
+    for oid in FIXED1:
+        by[oid].__dict__.update(SP1[oid])
+    for o in O:
+        if o.id in TEXTS1 and o.id not in HINT_NOTES1:
+            o.kind, (o.title, o.text) = 'note', TEXTS1[o.id]
+    names1 = {'ka': "مفتاح المكتب النحاسي", 'small': "المفتاح الصغير"}
+    study = {o.id for o in O if room_name1(o) == "المكتب"}
+    spots = [o for o in O if o.id in KEY_SPOTS1 and o.id not in study]
+    rng.shuffle(spots)
+    cKa, cSm = spots.pop(), spots.pop()
+
+    def mk(o, give):
+        o.kind, o.give = 'container', give
+        o.lines = [S("فتحت {f}...", f=o.name), S("ولقيت {k}!", k=names1[give])]
+        o.empty = "فاضي دلوقتي."
+        o.scare = rng.choice(['face', 'flicker', 'flicker', 'bang'])
+    mk(cKa, 'ka')
+    mk(cSm, 'small')
+
+    def hint(o):
+        return S("في {f} في {r}", f=o.name, r=room_name1(o))
+    pool = [o for o in O if o.kind in ('flavor', 'note') and o.id not in study]
+    rng.shuffle(pool)
+    notes = [TEXTS1['hall_table'],
+             ("ورقة بين الكتب", [S("ورقة قديمة...", ), S("مفتاح المكتب النحاسي مخبّي {h}.", h=hint(cKa))]),
+             ("ورقة مطوية", [S("ورقة قديمة...", ), S("المفتاح الصغير بتاع الدُرج... {h}.", h=hint(cSm))])]
+    for ttl, lines in notes:
+        o = pool.pop()
+        o.kind, o.title, o.text = 'note', ttl, list(lines)
+    bp = pool + [by['study_shelf']]
+    rng.shuffle(bp)
+    for o in bp[:5]:
+        o.kind, o.where = 'battery', S("جوه {f}", f=o.name)
+
+
+# ================================================================= حكاية البيت (أوراق ودفاتر في الشقق)
+STORY = {}
+for _n, _t, _l, _te, _le in [(1, 'كارت قديم', ['د. عادل الحكيم - طبيب أطفال', 'الشقة 1 - عمارة الهمس - 1987'], 'Old business card', ['Dr. Adel El-Hakim - Pediatrician', 'Apartment 1 - Whispering Building - 1987']), (1, 'جواب ماتبعتش', ['حبيبتي سلمى، انتقلنا النهارده.', 'العمارة هادية أوي... هادية زيادة.'], 'A letter never sent', ['My dear Salma, we moved in today.', 'The building is so quiet... too quiet.']), (2, 'دفتر ليلى', ['صاحبي الجديد ساكن في الحيطة.', 'بيقول اسمه "اللي تحت". بيحب الاستغماية.'], "Layla's notebook", ['My new friend lives in the wall.', 'He says his name is "The One Below". He loves hide and seek.']), (2, 'تحذير', ['عم رضوان قال: "متنزلوش البدروم بالليل".', 'ومرضيش يقول ليه.'], 'A warning', ['Uncle Radwan said: "Never go down to the basement at night."', "He wouldn't say why."]), (3, 'ورقة صفرا', ['العمارة اتبنت فوق بير قديم.', 'كانوا بيرموا فيه كل اللي مش عايزينه... حتى ناس.'], 'Yellowed paper', ['The building was built over an old well.', "They threw in everything they didn't want... even people."]), (3, 'دفتر عادل', ['سلمى بتسمع همس بالليل.', 'قلتلها أعصاب. كنت غلطان.'], "Adel's notebook", ['Salma hears whispers at night.', 'I told her it was nerves. I was wrong.']), (4, 'رسمة بالشمع', ['ليلى رسمت بيتنا... وفي الأرض بير.', 'وحوالين البير ناس كتير واقفين.'], 'Crayon drawing', ['Layla drew our house... with a well in the ground.', 'And many people standing around it.']), (4, 'رسالة عم رضوان', ['أنا حاولت أقفل البير بالأسمنت سنين.', 'كل مرة يرجع يتفتح من تحت.'], "Uncle Radwan's message", ['I tried sealing the well with concrete for years.', 'Every time, it reopens from below.']), (5, 'دفتر عادل', ['سلمى اختفت امبارح. بابها مقفول من جوه.', 'والبوليس قال: "سافرت". هي مسافرتش.'], "Adel's notebook", ['Salma vanished yesterday. Her door is locked from inside.', 'The police said: "She left." She did not.']), (5, 'علبة موسيقى', ['مكتوب تحتها: "لسلمى... عشان تنامي".', 'واللحن بيشتغل لوحده من يومها.'], 'Music box', ['Written underneath: "For Salma... so you can sleep."', 'The tune has played by itself ever since.']), (6, 'ورقة مبلولة', ['سمعتها بتنادي عليا من تحت.', 'بس بتقول جملة واحدة: "ما تجيش".'], 'Damp paper', ['I heard her calling me from below.', 'But she only says one thing: "Don\'t come."']), (6, 'دفتر ليلى', ['ماما بتلعب معانا استغماية دلوقتي.', 'بس هي دايمًا اللي بتستخبى.'], "Layla's notebook", ['Mama plays hide and seek with us now.', 'But she is always the one hiding.']), (7, 'تقرير طبي', ['المريض: عادل الحكيم. بيسمع أصوات.', 'النوم: صفر. التوصية: يسيب العمارة فورًا.'], 'Medical report', ['Patient: Adel El-Hakim. Hears voices.', 'Sleep: none. Recommendation: leave the building at once.']), (7, 'ورقة بخط مرتعش', ['ليلى مش بتنام في سريرها.', 'بلاقيها واقفة قدام الحيطة... بتبتسم.'], 'Shaky handwriting', ["Layla doesn't sleep in her bed.", 'I find her standing before the wall... smiling.']), (8, 'دفتر عادل', ['نزلت البدروم. البير مفتوح.', 'وفيه سلم نازل لتحت... والتحت مضلّم.'], "Adel's notebook", ['I went down to the basement. The well is open.', 'There are stairs going down... and it is dark below.']), (8, 'نقش على الحيطة', ['"اللي بيفتح البير بيسكن العمارة للأبد".', 'وتحتها أسماء كتير... آخرها: عادل.'], 'Carving on the wall', ['"Whoever opens the well lives in the building forever."', 'Below it, many names... the last one: Adel.']), (9, 'ورقة من عادل', ['مش قادر أخرج. كل باب بيطلّعني شقة تانية.', 'كنت فاكر إني بدوّر على سلمى وليلى...'], 'A page from Adel', ["I can't get out. Every door leads to another apartment.", 'I thought I was searching for Salma and Layla...']), (9, 'اعتراف', ['الحقيقة: مفيش حد خطفهم.', 'أنا اللي فتحت البير... وهما دخلوا وراي.'], 'Confession', ['The truth: nobody kidnapped them.', 'I opened the well... and they followed me in.']), (10, 'الصفحة الأخيرة', ['كل واحد يدخل العمارة فاكر إنه بيهرب.', 'بس العمارة هي اللي بتختار مين يطلع.'], 'The last page', ['Everyone who enters thinks they are escaping.', 'But the building decides who gets out.']), (10, 'بخط ليلى', ['لو وصلت هنا... هو مش عايز يخرّجك.', 'عايزك تلعب معاه. افتح الباب واجري.'], "In Layla's handwriting", ["If you made it here... he doesn't want to let you out.", 'He wants you to play with him. Open the door and run.'])]:
+    STORY.setdefault(_n, []).append((_t, _l))
+CHAPTER = {n: t for n, t, _e in [(2, 'الفصل 2: صاحب ليلى اللي في الحيطة', "Chapter 2: Layla's friend in the wall"), (3, 'الفصل 3: البير', 'Chapter 3: The Well'), (4, 'الفصل 4: الرسمة', 'Chapter 4: The Drawing'), (5, 'الفصل 5: اختفاء سلمى', 'Chapter 5: Salma Vanishes'), (6, 'الفصل 6: اللي بينادي من تحت', 'Chapter 6: The Voice From Below'), (7, 'الفصل 7: ليلى مبتنامش', "Chapter 7: Layla Doesn't Sleep"), (8, 'الفصل 8: السلم', 'Chapter 8: The Stairs'), (9, 'الفصل 9: الحقيقة', 'Chapter 9: The Truth'), (10, 'الفصل 10: اللي بيختار', 'Chapter 10: The One Who Chooses')]}
+STORY_END = 'وفي دفتر عادل القديم... اتكتب سطر جديد باسمك.'
+
+
+def place_story(objs, n, seed):
+    """بيحوّل كام قطعة أثاث عادية لأوراق من الحكاية (بعشوائية منفصلة، فنفس الشقة بتطلع نفس الأوراق عند كل اللاعبين)"""
+    pool = [o for o in objs if o.kind == 'flavor']
+    random.Random(seed * 7 + n).shuffle(pool)
+    for o, (ttl, lines) in zip(pool, STORY.get(n, [])):
+        o.kind, o.title, o.text = 'note', ttl, list(lines)
+
+
+def build_level1(seed=0):
     lv = Level()
     lv.n, lv.W, lv.H = 1, 40, 26
     lv.title = "البيت القديم"
@@ -265,7 +328,7 @@ def build_level1():
     lv.rooms = ROOMS1
     lv.rugs = RUGS1
     lv.candles = CANDLES1
-    lv.objs = build_objs1()
+    lv.objs = build_objs1(seed)
     lv.triggers = [dict(rect=pygame.Rect(a * T, b * T, c * T, d * T), kind=k, fired=False)
                    for a, b, c, d, k in [(10, 11, 3, 3, 'flicker'), (16, 4, 5, 2, 'bang'),
                                          (25, 11, 3, 3, 'face'), (27, 19, 5, 3, 'bang'),
@@ -686,22 +749,22 @@ def _snd(samples):
 
 def load_or_build_sounds(msg=None):
     """على الموبايل بيتخزّن الصوت أول مرة (بيتبني بالكود)، والمرات الجاية بيتحمّل في لحظة"""
-    cache = os.path.join(APP_DIR, "cache", "snd_v3")
+    cache = os.path.join(APP_DIR, "cache", "snd_v5")
     marker = os.path.join(cache, "ok")
-    if ANDROID and os.path.exists(marker):
+    if os.path.exists(marker):
         try:
             d = {}
             for fn in os.listdir(cache):
                 if fn.endswith('.wav'):
                     d[fn[:-4]] = pygame.mixer.Sound(os.path.join(cache, fn))
-            if 'drone' in d:
+            if 'drone' in d and 'roar' in d and 'chant' in d:
                 return d
         except Exception:
             pass
     if msg:
         msg("جاري تجهيز الأصوات... (أول مرة بس)")
     d = build_sounds()
-    if ANDROID:
+    if True:
         try:
             os.makedirs(cache, exist_ok=True)
             fmt = pygame.mixer.get_init()
@@ -849,7 +912,351 @@ def build_sounds():
         y = y * 0.6 + n_ * 0.4
         out.append((n_ - y) * math.exp(-t * 9) * 1.1 * (t / 0.02 if t < 0.02 else 1.0))
     S['snuff'] = _snd(out)
+    build_extra_sounds(S)
+    build_extra_sounds2(S)
     return S
+
+
+def build_extra_sounds(S):
+    """أصوات رعب إضافية: زئير، زمجرة، صرخة، سلاسل، جرّ، خربشة، جرس، ريح، نقطة مياه، إزاز، راديو، ضحكة، كورال..."""
+    rnd = random.random
+    tp = 2 * math.pi
+
+    out, ph, y = [], 0.0, 0.0                               # زمجرة وحش
+    for i in range(int(SR * 1.6)):
+        t = i / SR
+        ph += tp * (62 + 16 * math.sin(tp * 2.5 * t) + 8 * math.sin(tp * 0.7 * t)) / SR
+        saw = (ph / tp) % 1 * 2 - 1
+        y = y * 0.88 + (rnd() * 2 - 1) * 0.12
+        env = math.sin(math.pi * t / 1.6) ** 0.7
+        out.append(env * (0.6 + 0.4 * math.sin(tp * 27 * t)) * math.tanh(1.8 * saw + 5 * y) * 0.75)
+    S['growl'] = _snd(out)
+
+    out, ph, y = [], 0.0, 0.0                               # زئير
+    for i in range(int(SR * 1.9)):
+        t = i / SR
+        f = 80 + 150 * math.sin(math.pi * min(1.0, t / 1.2)) ** 1.3 - 20 * t + 12 * math.sin(tp * 9 * t)
+        ph += tp * f / SR
+        y = y * 0.7 + (rnd() * 2 - 1) * 0.3
+        env = (t / 0.05 if t < 0.05 else 1.0) * math.exp(-max(0.0, t - 0.9) * 1.8)
+        v = math.sin(ph) + 0.6 * math.sin(2 * ph + 0.4) + 0.5 * math.sin(3 * ph) + 0.35 * math.sin(5 * ph)
+        out.append(env * math.tanh(1.2 * v + 2.0 * y) * 0.7)
+    S['roar'] = _snd(out)
+
+    out, ph, ph2 = [], 0.0, 0.0                             # صرخة ست
+    for i in range(int(SR * 1.7)):
+        t = i / SR
+        f = 1100 + 700 * min(1.0, t / 0.25) - 400 * (t / 1.7) ** 2 + 45 * math.sin(tp * 8 * t)
+        ph += tp * f / SR
+        ph2 += tp * f * 1.012 / SR
+        env = (t / 0.015 if t < 0.015 else 1.0) * math.exp(-t * 0.9) * (1.0 if t < 1.5 else (1.7 - t) / 0.2)
+        v = math.sin(ph) + 0.5 * math.sin(2 * ph) + 0.7 * math.sin(ph2) + 0.25 * math.sin(3 * ph)
+        out.append(env * (0.5 * math.tanh(2.2 * v) + (rnd() - 0.5) * 0.12))
+    S['scream'] = _snd(out)
+
+    n = int(SR * 1.6)                                       # سلاسل بتتجرّ
+    out = [0.0] * n
+    for t0 in (0.0, 0.11, 0.26, 0.31, 0.52, 0.6, 0.83, 0.97, 1.12):
+        st, base = int(SR * t0), random.choice((1800, 2300, 2900, 3600))
+        for j in range(int(SR * 0.28)):
+            if st + j >= n:
+                break
+            t = j / SR
+            out[st + j] += math.exp(-t * 30) * 0.3 * (math.sin(tp * base * t) + 0.6 * math.sin(tp * base * 1.47 * t) +
+                                                        0.4 * math.sin(tp * base * 2.09 * t)) + (rnd() * 2 - 1) * 0.05 * math.exp(-t * 80)
+    S['chains'] = _snd(out)
+
+    out, y = [], 0.0                                        # حاجة تقيلة بتتسحب على الأرض
+    for i in range(int(SR * 2.2)):
+        t = i / SR
+        y = y * 0.93 + (rnd() * 2 - 1) * 0.07
+        env = math.sin(math.pi * t / 2.2) ** 1.2 * (0.55 + 0.45 * abs(math.sin(tp * 1.7 * t)))
+        out.append(env * (y * 2.3 + 0.25 * math.sin(tp * 48 * t) * (0.5 + 0.5 * math.sin(tp * 3.4 * t))))
+    S['dragging'] = _snd(out)
+
+    out, y = [], 0.0                                        # ضوافر بتخربش الخشب
+    for i in range(int(SR * 1.3)):
+        t = i / SR
+        nz = rnd() * 2 - 1
+        y = y * 0.5 + nz * 0.5
+        cyc = (t * 7) % 1
+        env = (math.sin(math.pi * cyc / 0.55) if cyc < 0.55 else 0.0) * math.sin(math.pi * t / 1.3)
+        out.append((nz - y) * env * 1.0)
+    S['scratch'] = _snd(out)
+
+    n = int(SR * 3.6)                                       # جرس كنيسة مش مظبوط
+    out = [0.0] * n
+    for t0, vol in ((0.0, 1.0), (1.5, 0.8)):
+        st = int(SR * t0)
+        for ratio, amp, dec in ((1.0, 1.0, 1.1), (2.0, 0.6, 1.5), (2.76, 0.5, 1.8), (5.4, 0.3, 2.6), (8.93, 0.15, 3.6)):
+            f = 196 * ratio
+            for j in range(int(SR * min(2.0, 4.5 / dec))):
+                if st + j >= n:
+                    break
+                t = j / SR
+                out[st + j] += vol * amp * 0.2 * math.exp(-t * dec) * math.sin(tp * f * t)
+    S['bell'] = _snd(out)
+
+    out, y, ph = [], 0.0, 0.0                               # ريح بتعوي
+    for i in range(int(SR * 3.4)):
+        t = i / SR
+        y += (rnd() * 2 - 1 - y) * (0.04 + 0.05 * (0.5 + 0.5 * math.sin(tp * 0.4 * t)))
+        ph += tp * (520 + 160 * math.sin(tp * 0.5 * t + 1) + 40 * math.sin(tp * 3 * t)) / SR
+        env = math.sin(math.pi * t / 3.4) ** 1.3
+        out.append(env * (y * 3.4 + 0.06 * math.sin(ph) * (0.5 + 0.5 * math.sin(tp * 0.7 * t))))
+    S['wind'] = _snd(out)
+
+    n = int(SR * 0.9)                                       # نقطة مياه في مكان فاضي
+    out = [0.0] * n
+    for t0, vol in ((0.0, 1.0), (0.42, 0.45)):
+        st = int(SR * t0)
+        for j in range(int(SR * 0.12)):
+            t = j / SR
+            out[st + j] += vol * 0.5 * math.exp(-t * 38) * math.sin(tp * (700 * t + 1500 * t * t))
+    S['drip'] = _snd(out)
+
+    n = int(SR * 1.0)                                       # إزاز بيتكسر
+    out = [0.0] * n
+    for i in range(int(SR * 0.12)):
+        out[i] += (rnd() * 2 - 1) * math.exp(-i / SR * 40) * 0.9
+    for _k in range(14):
+        st, f = int(SR * random.uniform(0.03, 0.6)), random.uniform(2500, 6500)
+        for j in range(int(SR * 0.2)):
+            if st + j >= n:
+                break
+            t = j / SR
+            out[st + j] += 0.16 * math.exp(-t * 28) * math.sin(tp * f * t)
+    S['glass'] = _snd(out)
+
+    out, y, ph = [], 0.0, 0.0                               # راديو بيتكلم لوحده
+    for i in range(int(SR * 1.8)):
+        t = i / SR
+        y = y * 0.6 + (rnd() * 2 - 1) * 0.4
+        seg = int(t * 9)
+        ph += tp * (180 + 90 * ((seg * 37) % 7) / 7 + 40 * math.sin(tp * 6 * t)) / SR
+        voice = (math.sin(ph) + 0.5 * math.sin(2 * ph) + 0.3 * math.sin(3 * ph)) * 0.18 if seg % 3 else 0.0
+        out.append((voice * (0.6 + 0.4 * math.sin(tp * 13 * t)) + y * 0.35) * (0.4 + 0.6 * math.sin(math.pi * t / 1.8)))
+    S['radio'] = _snd(out)
+
+    n = int(SR * 1.8)                                       # ضحكة واطية بطيئة
+    out = [0.0] * n
+    for k, t0 in enumerate((0.0, 0.28, 0.56, 0.84, 1.2)):
+        f0, dur, ph = 330 - k * 25, 0.2, 0.0
+        for j in range(int(SR * dur)):
+            t = j / SR
+            ph += tp * (f0 - 90 * t / dur + 12 * math.sin(tp * 30 * t)) / SR
+            env = math.sin(math.pi * t / dur) ** 1.2
+            out[int(SR * t0) + j] += env * (0.4 * math.sin(ph) + 0.25 * math.sin(2 * ph + 1) + 0.15 * math.sin(3 * ph) +
+                                            (rnd() - 0.5) * 0.08)
+    S['giggle'] = _snd(out)
+
+    n = int(SR * 2.8)                                       # كورال أصوات نشاز
+    out = [0.0] * n
+    for f in (196.0, 207.7, 293.7, 415.3):
+        ph = random.random() * tp
+        for i in range(n):
+            t = i / SR
+            ph += tp * f * (1 + 0.006 * math.sin(tp * (4.5 + f % 5) * t)) / SR
+            out[i] += math.sin(math.pi * t / 2.8) ** 1.5 * 0.1 * (math.sin(ph) + 0.45 * math.sin(2 * ph) + 0.25 * math.sin(3 * ph))
+    S['choir'] = _snd(out)
+
+    out, y = [], 0.0                                        # فحيح
+    for i in range(int(SR * 1.1)):
+        t = i / SR
+        nz = rnd() * 2 - 1
+        y = y * 0.4 + nz * 0.6
+        out.append((nz - y * 0.9) * math.sin(math.pi * t / 1.1) ** 0.8 * 0.9)
+    S['hiss'] = _snd(out)
+
+    out, y, y2 = [], 0.0, 0.0                               # رعد
+    for i in range(int(SR * 2.8)):
+        t = i / SR
+        nz = rnd() * 2 - 1
+        y += (nz - y) * 0.03
+        y2 += (y - y2) * 0.05
+        env = (1.0 if t < 0.03 else math.exp(-(t - 0.03) * 1.3)) * (0.7 + 0.3 * math.sin(tp * 7 * t))
+        out.append(env * y2 * 15 + math.exp(-t * 30) * nz * 0.7)
+    S['thunder'] = _snd(out)
+
+    out, ph = [], 0.0                                       # أنين شبح
+    for i in range(int(SR * 2.2)):
+        t = i / SR
+        ph += tp * (150 - 35 * (t / 2.2) + 6 * math.sin(tp * 5 * t)) / SR
+        v = math.sin(ph) + 0.8 * math.sin(2 * ph) + 0.9 * math.sin(3 * ph + 0.3) + 0.5 * math.sin(5 * ph)
+        out.append(math.sin(math.pi * t / 2.2) ** 1.4 * 0.22 * v + (rnd() - 0.5) * 0.03)
+    S['moan'] = _snd(out)
+
+    n = int(SR * 0.9)                                       # عضم بيتكسّر
+    out, y = [0.0] * n, 0.0
+    for t0 in (0.0, 0.13, 0.2, 0.41, 0.5, 0.66):
+        st = int(SR * t0)
+        for j in range(int(SR * 0.1)):
+            t = j / SR
+            y = y * 0.7 + (rnd() * 2 - 1) * 0.3
+            out[st + j] += math.exp(-t * 45) * (y * 1.2 + 0.5 * math.sin(tp * 130 * t))
+    S['crunch'] = _snd(out)
+
+
+def build_extra_sounds2(S):
+    """دفعة تانية من أصوات الرعب: بكا طفل، دبّان، جري، خبطات، صفير، تليفون، مقبض باب، ساعة، أرجوحة، عواء، غراب، ترتيل، ضربة رعب، حشرجة، همس معكوس"""
+    rnd = random.random
+    tp = 2 * math.pi
+
+    n = int(SR * 2.1)                                       # بكا طفل
+    out = [0.0] * n
+    for t0, dur, f0 in ((0.0, 0.8, 520), (0.95, 0.75, 480), (1.8, 0.3, 430)):
+        ph = 0.0
+        for j in range(int(SR * dur)):
+            t = j / SR
+            ph += tp * (f0 + 150 * math.sin(math.pi * t / dur) + 14 * math.sin(tp * 9 * t)) / SR
+            env = min(1.0, t / 0.04) * math.sin(math.pi * t / dur) ** 0.6
+            out[int(SR * t0) + j] += env * 0.45 * math.tanh(1.3 * (math.sin(ph) + 0.6 * math.sin(2 * ph) +
+                                                                  0.45 * math.sin(3 * ph) + (rnd() - 0.5) * 0.25))
+    S['baby'] = _snd(out)
+
+    out, y = [], 0.0                                        # سرب دبّان
+    for i in range(int(SR * 2.5)):
+        t = i / SR
+        y = y * 0.8 + (rnd() * 2 - 1) * 0.2
+        am = 0.5 + 0.5 * math.sin(tp * 7 * t) * math.sin(tp * 3.1 * t + 1)
+        buzz = math.sin(tp * (190 + 25 * math.sin(tp * 11 * t)) * t) + 0.5 * math.sin(tp * 380 * t)
+        out.append(math.sin(math.pi * t / 2.5) ** 0.6 * am * (0.22 * buzz + 0.5 * y))
+    S['flies'] = _snd(out)
+
+    n = int(SR * 1.6)                                       # جري سريع
+    out = [0.0] * n
+    for k in range(8):
+        st = int(SR * (0.02 + k * 0.18))
+        y = 0.0
+        for j in range(int(SR * 0.12)):
+            if st + j >= n:
+                break
+            t = j / SR
+            y = y * 0.6 + (rnd() * 2 - 1) * 0.4
+            out[st + j] += math.exp(-t * 38) * (0.6 * math.sin(tp * 85 * t) + 0.5 * y) * (0.7 + 0.04 * k)
+    S['run'] = _snd(out)
+
+    n = int(SR * 1.5)                                       # تلات خبطات تقيلة
+    out = [0.0] * n
+    for t0 in (0.0, 0.55, 1.1):
+        st, y = int(SR * t0), 0.0
+        for j in range(int(SR * 0.32)):
+            t = j / SR
+            y = y * 0.7 + (rnd() * 2 - 1) * 0.3
+            out[st + j] += math.exp(-t * 13) * (0.9 * math.sin(tp * 105 * t) + 0.4 * math.sin(tp * 210 * t)) + math.exp(-t * 90) * y * 0.8
+    S['knock3'] = _snd(out)
+
+    out, ph = [], 0.0                                       # صفير مرعب بلحن بطيء
+    notes = [880, 831, 740, 831, 659, 698, 740, 622]
+    for i in range(int(SR * 2.6)):
+        t = i / SR
+        k = min(len(notes) - 1, int(t / 0.32))
+        ph += tp * (notes[k] * 0.5 + 6 * math.sin(tp * 5.5 * t)) / SR
+        c = (t % 0.32) / 0.32
+        env = math.sin(math.pi * c) ** 0.5 * min(1.0, (2.6 - t) / 0.3)
+        out.append(env * 0.35 * (math.sin(ph) + 0.12 * math.sin(2 * ph)) + (rnd() - 0.5) * 0.02 * env)
+    S['whistle'] = _snd(out)
+
+    n = int(SR * 2.4)                                       # تليفون قديم بيرن
+    out = [0.0] * n
+    for t0 in (0.0, 1.2):
+        st = int(SR * t0)
+        for j in range(int(SR * 0.8)):
+            t = j / SR
+            gate = 1.0 if (t * 22) % 1 < 0.55 else 0.0
+            out[st + j] += gate * 0.3 * (math.sin(tp * 440 * t) + math.sin(tp * 480 * t)) * min(1.0, (0.8 - t) / 0.03)
+    S['phone'] = _snd(out)
+
+    n = int(SR * 1.3)                                       # حد بيهز مقبض الباب
+    out = [0.0] * n
+    for t0 in (0.0, 0.09, 0.21, 0.3, 0.52, 0.6, 0.83, 0.9):
+        st, f = int(SR * t0), random.uniform(500, 1500)
+        for j in range(int(SR * 0.16)):
+            if st + j >= n:
+                break
+            t = j / SR
+            out[st + j] += math.exp(-t * 36) * 0.35 * (math.sin(tp * f * t) + 0.7 * math.sin(tp * f * 1.62 * t) + (rnd() - 0.5) * 0.6)
+    S['doorknob'] = _snd(out)
+
+    n = int(SR * 3.2)                                       # ساعة: تك تك ودقّة تقيلة
+    out = [0.0] * n
+    for k in range(5):
+        st, f = int(SR * (0.1 + k * 0.45)), (1500 if k % 2 == 0 else 1100)
+        for j in range(int(SR * 0.05)):
+            t = j / SR
+            out[st + j] += math.exp(-t * 90) * 0.5 * math.sin(tp * f * t)
+    st = int(SR * 2.4)
+    for j in range(int(SR * 0.8)):
+        t = j / SR
+        out[st + j] += math.exp(-t * 3.5) * 0.4 * (math.sin(tp * 130 * t) + 0.5 * math.sin(tp * 262 * t + 1))
+    S['clock'] = _snd(out)
+
+    out, ph = [], 0.0                                       # أرجوحة بتزيّ لوحدها
+    for i in range(int(SR * 2.6)):
+        t = i / SR
+        c = (t % 1.3) / 1.3
+        ph += tp * (780 + 380 * math.sin(math.pi * c) + 30 * math.sin(tp * 40 * t)) / SR
+        env = math.sin(math.pi * c) ** 1.4 * min(1.0, (2.6 - t) / 0.2)
+        out.append(env * 0.3 * math.tanh(2.0 * (math.sin(ph) + 0.5 * math.sin(2 * ph) + 0.3 * math.sin(5 * ph))))
+    S['swing'] = _snd(out)
+
+    out, ph = [], 0.0                                       # عواء ديب بعيد
+    for i in range(int(SR * 3.0)):
+        t = i / SR
+        f = 300 + 400 * math.sin(math.pi * min(1.0, t / 2.2)) ** 1.2 - 60 * max(0.0, t - 2.0) + 8 * math.sin(tp * 5.5 * t)
+        ph += tp * f / SR
+        env = min(1.0, t / 0.4) * min(1.0, (3.0 - t) / 0.6)
+        out.append(env * 0.38 * (math.sin(ph) + 0.4 * math.sin(2 * ph) + 0.2 * math.sin(3 * ph)) + (rnd() - 0.5) * 0.03 * env)
+    S['howl'] = _snd(out)
+
+    n = int(SR * 1.3)                                       # غراب
+    out = [0.0] * n
+    for t0 in (0.0, 0.4, 0.8):
+        ph = 0.0
+        for j in range(int(SR * 0.24)):
+            t = j / SR
+            ph += tp * (520 - 220 * t / 0.24) / SR
+            saw = (ph / tp) % 1 * 2 - 1
+            out[int(SR * t0) + j] += math.sin(math.pi * t / 0.24) ** 0.5 * 0.45 * math.tanh(2.0 * saw + (rnd() - 0.5) * 0.9)
+    S['crow'] = _snd(out)
+
+    n = int(SR * 3.2)                                       # ترتيل واطي مخيف
+    out = [0.0] * n
+    for f in (98.0, 98.0 * 1.5, 147.0 * 1.06):
+        ph = random.random() * tp
+        for i in range(n):
+            t = i / SR
+            ph += tp * f * (1 + 0.004 * math.sin(tp * 4.2 * t)) / SR
+            vow = 0.6 + 0.4 * math.sin(tp * 0.8 * t + f)
+            out[i] += math.sin(math.pi * t / 3.2) ** 1.2 * 0.14 * (math.sin(ph) + 0.8 * vow * math.sin(3 * ph) + 0.5 * math.sin(5 * ph))
+    S['chant'] = _snd(out)
+
+    out, ph = [], 0.0                                       # ضربة رعب (stinger)
+    for i in range(int(SR * 1.7)):
+        t = i / SR
+        ph += tp * (48 - 14 * min(1.0, t / 0.5)) / SR
+        cluster = (math.sin(tp * 233 * t) + math.sin(tp * 247 * t) + math.sin(tp * 261 * t)) * math.exp(-t * 3.0) * 0.12
+        out.append(math.tanh(1.8 * math.exp(-t * 2.4) * math.sin(ph)) * 0.9 + cluster + (rnd() * 2 - 1) * math.exp(-t * 45) * 0.7)
+    S['boom'] = _snd(out)
+
+    out, y, ph = [], 0.0, 0.0                               # حشرجة
+    for i in range(int(SR * 1.9)):
+        t = i / SR
+        y += (rnd() * 2 - 1 - y) * 0.1
+        ph += tp * (70 + 15 * math.sin(tp * 3 * t)) / SR
+        flutter = 0.5 + 0.5 * math.sin(tp * 18 * t) * math.sin(tp * 1.3 * t + 2)
+        out.append(math.sin(math.pi * t / 1.9) ** 1.1 * (flutter * (y * 3.0 + 0.25 * math.sin(ph))))
+    S['rattle'] = _snd(out)
+
+    out, y = [], 0.0                                        # همس معكوس
+    for i in range(int(SR * 2.2)):
+        t = i / SR
+        nz = rnd() * 2 - 1
+        y = y * 0.62 + nz * 0.38
+        cyc = (t * 2.3) % 1
+        env = (cyc / 0.8) ** 2 if cyc < 0.8 else 0.0
+        out.append((y * 1.6 + 0.1 * math.sin(tp * (300 + 60 * math.sin(tp * 4 * t)) * t)) * env * 0.7)
+    S['revwhisper'] = _snd(out)
 
 
 MASTER = 1.0
@@ -1000,7 +1407,18 @@ def android_tts_to_wav(name, out):
         return False
 
 
+import threading as _th
+TTS_LOCK = _th.Lock()
+
+
 def tts_to_wav(name, out):
+    with TTS_LOCK:
+        if os.path.exists(out) and os.path.getsize(out) > 1000:
+            return True
+        return _tts_to_wav_raw(name, out)
+
+
+def _tts_to_wav_raw(name, out):
     """بيطلّع ملف wav فيه الاسم منطوق بصوت الجهاز (pyttsx3 أو PowerShell على ويندوز أو محرّك أندرويد)"""
     if ANDROID:
         return android_tts_to_wav(name, out)
@@ -1178,6 +1596,64 @@ def make_voice_variants(path):
     return vs
 
 
+# ================================================================= الوحوش بتنادي اللاعبين بأسمائهم بوضوح
+CLEAR_KEYS = ('n', 'c', 'd')          # عادي / طفل / غليظ
+NAME_BUSY = set()
+
+
+def make_clear_voices(path):
+    """نسخ واضحة من الاسم: من غير همس ولا تشويه، بس صدى خفيف وطبقة صوت مختلفة"""
+    mono, fr = _load_mono(path)
+    if not mono:
+        return {}
+    vs = {}
+    for key, ratio in (('n', 0.92), ('c', 1.22), ('d', 0.78)):
+        y, x = 0.0, []
+        for v in _resample(mono, fr, ratio):
+            y += (math.tanh(1.15 * v) - y) * 0.8
+            x.append(y)
+        vs[key] = _mix([(x, 0, 1.0), (x, 0.24, 0.26), (x, 0.52, 0.12)], 0.9)
+    return vs
+
+
+def prepare_name_voice(name):
+    """بيجهّز نسخ واضحة من اسم لاعب. بتتحفظ في الكاش فمبتتعملش تاني"""
+    if not AUDIO or not name or ('vn:%s:n' % name) in SND or name in NAME_BUSY:
+        return False
+    NAME_BUSY.add(name)
+    try:
+        vdir = os.path.join(APP_DIR, "cache") if ANDROID else tempfile.gettempdir()
+        os.makedirs(vdir, exist_ok=True)
+        base = os.path.join(vdir, "hh_voice_%s" % hashlib.md5(name.encode('utf-8')).hexdigest()[:10])
+        paths = {k: base + "_clear_%s_v1.wav" % k for k in CLEAR_KEYS}
+        if not all(os.path.exists(p) and os.path.getsize(p) > 1000 for p in paths.values()):
+            if not tts_to_wav(name, base + ".wav"):
+                return False
+            for k, res in make_clear_voices(base + ".wav").items():
+                _save_wav(paths[k], res)
+        for k, p in paths.items():
+            if os.path.exists(p):
+                SND['vn:%s:%s' % (name, k)] = pygame.mixer.Sound(p)
+        return ('vn:%s:n' % name) in SND
+    except Exception as ex:
+        print("مشكلة في صوت الاسم:", ex)
+    finally:
+        NAME_BUSY.discard(name)
+    return False
+
+
+def prepare_names_async(names):
+    """بيجهّز أصوات أسماء كل اللاعبين في الخلفية واللعبة شغّالة"""
+    names = [n for n in dict.fromkeys(names) if n]
+    if not names or not AUDIO:
+        return
+
+    def run():
+        for n in names:
+            prepare_name_voice(n)
+    _th.Thread(target=run, daemon=True).start()
+
+
 def prepare_voice(name):
     """بيجهّز صوت الشبح باسمك. لو فشل: الشبح هيهمس وبس"""
     SND.pop('voice', None)
@@ -1206,6 +1682,7 @@ def prepare_voice(name):
                     continue
                 _save_wav(cp, vs[k])
             SND[k] = pygame.mixer.Sound(cp)
+        prepare_names_async([name])
         return 'voice' in SND
     except Exception as ex:
         print("مشكلة في صوت الشبح:", ex)
@@ -1367,6 +1844,12 @@ MON_META = [
 EXPRS = ('neutral', 'happy', 'surprised', 'angry', 'sad', 'scared')
 
 
+def rand_mk():
+    """وحش عشوائي للخضّات: من غير اللي تحت (هو بيظهر في آخر شقة بس)"""
+    ok = [i for i in range(nmon()) if mon_of(i).get('beh') != 'boss']
+    return random.choice(ok or [0])
+
+
 def nmon():
     return len(A['mons'])
 
@@ -1457,6 +1940,494 @@ def load_art():
         A['mon_big'] = {}
 
 
+# ================================================================= وحوش إضافية (بتترسم بالكود، وتقدر تستبدلها بصور من assets)
+# كل وحش ليه رسمة جسم (بتمشي في الشقة) ووش كبير (للخضّة). لو حطيت في فولدر assets ملفات
+#   mon_4.png / js_4.png  ... لحد  mon_9.png / js_9.png   هتتاخد هي بدل الرسم بالكود.
+def _claws(s, x, y, sg, col=(222, 222, 210), n=5, ln=18):
+    for f in range(n):
+        pygame.draw.line(s, col, (x, y), (x + (f - n // 2) * 4 + sg * random.randint(0, 6), y + random.randint(ln - 6, ln + 8)), 2)
+
+
+def _flames(s, cx, base_y, w, hgt, n=9):
+    """ألسنة نار (3 طبقات: أحمر - برتقالي - أصفر)"""
+    for k in range(n):
+        x = cx - w // 2 + int(w * k / max(1, n - 1))
+        hh = hgt * random.uniform(0.55, 1.0)
+        for col, sc in (((210, 50, 8), 1.0), ((255, 140, 20), 0.72), ((255, 225, 110), 0.42)):
+            pygame.draw.polygon(s, col, [(x - max(6, w // n), base_y), (x + max(6, w // n), base_y),
+                                         (x + random.randint(-10, 10), base_y - int(hh * sc))])
+
+
+def _sp_nun():
+    """الراهبة: روب أسود، وش شاحب، عيون بتنزل دم"""
+    random.seed(401)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (14, 14, 20), [(80, 120), (160, 120), (214, 326), (26, 326)])
+    for k in range(9):
+        x = 40 + k * 20
+        pygame.draw.line(s, (32, 32, 42), (120 + (x - 120) * 0.3, 130), (x, 326), 2)
+    pygame.draw.polygon(s, (8, 8, 12), [(84, 36), (156, 36), (188, 150), (52, 150)])
+    pygame.draw.polygon(s, (232, 232, 226), [(70, 122), (170, 122), (150, 152), (90, 152)])
+    pygame.draw.ellipse(s, (214, 214, 204), (92, 50, 56, 78))
+    pygame.draw.rect(s, (236, 236, 230), (88, 42, 64, 16))
+    for ex in (108, 132):
+        pygame.draw.ellipse(s, (0, 0, 0), (ex - 9, 78, 18, 22))
+        pygame.draw.line(s, (130, 0, 0), (ex, 98), (ex + random.randint(-3, 3), 130), 2)
+    pygame.draw.ellipse(s, (20, 0, 0), (108, 108, 24, 16))
+    for k in range(5):
+        pygame.draw.line(s, (230, 230, 215), (111 + k * 4, 110), (111 + k * 4, 116), 1)
+    pygame.draw.line(s, (170, 150, 60), (120, 160), (120, 198), 4)
+    pygame.draw.line(s, (170, 150, 60), (108, 172), (132, 172), 4)
+    for sg in (-1, 1):
+        pts = [(120 + sg * 50, 140), (120 + sg * 66, 205), (120 + sg * 58, 262)]
+        pygame.draw.lines(s, (12, 12, 18), False, pts, 18)
+        pygame.draw.line(s, (210, 210, 200), pts[-1], (pts[-1][0], pts[-1][1] + 18), 6)
+        _claws(s, pts[-1][0], pts[-1][1] + 14, sg)
+    random.seed()
+    return s, [(108, 90), (132, 90)]
+
+
+def _sp_doll():
+    """الدمية: راسها بورسلين مشروخ، عين زرار وعين فاضية"""
+    random.seed(402)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (110, 18, 28), [(96, 150), (144, 150), (206, 312), (34, 312)])
+    for k in range(8):
+        pygame.draw.circle(s, (220, 205, 190), (46 + k * 21, 308), 9)
+    for lx in (98, 134):
+        pygame.draw.rect(s, (206, 196, 184), (lx, 306, 10, 22))
+    pygame.draw.lines(s, (206, 196, 184), False, [(98, 162), (62, 200), (70, 246)], 9)
+    pygame.draw.lines(s, (206, 196, 184), False, [(142, 162), (178, 200), (170, 246)], 9)
+    pygame.draw.ellipse(s, (40, 22, 14), (44, 18, 152, 112))
+    for sg in (-1, 1):
+        for k in range(5):
+            pygame.draw.circle(s, (40, 22, 14), (120 + sg * 70, 56 + k * 20), 17)
+    pygame.draw.ellipse(s, (232, 224, 214), (64, 32, 112, 112))
+    for _ in range(7):
+        x, y = random.randint(80, 160), random.randint(46, 110)
+        pygame.draw.lines(s, (90, 80, 70), False, [(x, y), (x + random.randint(-12, 12), y + 14), (x + random.randint(-16, 16), y + 30)], 1)
+    pygame.draw.circle(s, (10, 10, 10), (98, 88), 15)
+    pygame.draw.line(s, (230, 230, 230), (90, 80), (106, 96), 2)
+    pygame.draw.line(s, (230, 230, 230), (106, 80), (90, 96), 2)
+    pygame.draw.circle(s, (0, 0, 0), (142, 88), 16)
+    for cx in (80, 160):
+        pygame.draw.circle(s, (190, 70, 70), (cx, 118), 9)
+    pygame.draw.line(s, (120, 10, 10), (92, 124), (148, 124), 3)
+    for k in range(7):
+        pygame.draw.line(s, (120, 10, 10), (94 + k * 9, 119), (94 + k * 9, 130), 1)
+    random.seed()
+    return s, [(98, 88), (142, 88)]
+
+
+def _sp_tall():
+    """الرجل الطويل: بدلة سودا، وش فاضي، دراعات طويلة وزوايد من ضهره"""
+    random.seed(403)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    for k in range(5):                                       # زوايد من ضهره
+        x, y = 120, 120
+        pts = [(x, y)]
+        sg = -1 if k % 2 else 1
+        for _ in range(6):
+            x += sg * random.randint(6, 18)
+            y -= random.randint(2, 26) - (10 if k > 1 else 0)
+            pts.append((x, y))
+        pygame.draw.lines(s, (6, 6, 8), False, pts, 5)
+    pygame.draw.rect(s, (10, 10, 14), (96, 230, 20, 96))
+    pygame.draw.rect(s, (10, 10, 14), (124, 230, 20, 96))
+    pygame.draw.polygon(s, (10, 10, 14), [(88, 94), (152, 94), (146, 244), (94, 244)])
+    pygame.draw.polygon(s, (200, 200, 206), [(108, 94), (132, 94), (120, 150)])
+    pygame.draw.line(s, (24, 24, 30), (120, 100), (120, 190), 5)
+    for sg in (-1, 1):
+        pts = [(120 + sg * 32, 100), (120 + sg * 54, 200), (120 + sg * 46, 312)]
+        pygame.draw.lines(s, (10, 10, 14), False, pts, 8)
+        hx, hy = pts[-1]
+        for f in range(4):
+            pygame.draw.line(s, (214, 214, 208), (hx, hy), (hx + (f - 2) * 3, hy + random.randint(12, 18)), 2)
+    pygame.draw.rect(s, (214, 214, 208), (114, 80, 12, 16))
+    pygame.draw.ellipse(s, (222, 222, 216), (98, 24, 44, 64))
+    for ex in (110, 130):
+        pygame.draw.ellipse(s, (30, 30, 34), (ex - 4, 54, 8, 8))
+    random.seed()
+    return s, [(110, 58), (130, 58)]
+
+
+def _sp_clown():
+    """المهرج: ابتسامة لحد ودانه وهدوم منقّطة"""
+    random.seed(404)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (150, 30, 40), [(76, 140), (164, 140), (200, 312), (40, 312)])
+    for _ in range(15):
+        x, y = random.randint(70, 170), random.randint(160, 300)
+        pygame.draw.circle(s, (205, 195, 80), (x, y), 7)
+    for sg in (-1, 1):
+        pygame.draw.lines(s, (150, 30, 40), False, [(120 + sg * 44, 152), (120 + sg * 78, 226), (120 + sg * 70, 262)], 16)
+        pygame.draw.ellipse(s, (236, 236, 232), (120 + sg * 70 - 12, 256, 26, 30))
+        _claws(s, 120 + sg * 70, 276, sg, (236, 236, 232), 4, 14)
+    for k in range(9):
+        pygame.draw.circle(s, (236, 236, 228), (76 + k * 11, 142), 10)
+    for fx in (52, 128):
+        pygame.draw.ellipse(s, (200, 40, 30), (fx, 302, 62, 26))
+    for sg in (-1, 1):
+        for k in range(5):
+            pygame.draw.circle(s, (196, 56, 20), (120 + sg * (46 + (k % 2) * 6), 40 + k * 14), 18)
+    pygame.draw.ellipse(s, (240, 236, 230), (80, 24, 80, 100))
+    for ex in (104, 136):
+        pygame.draw.polygon(s, (22, 10, 10), [(ex, 54), (ex + 11, 66), (ex, 78), (ex - 11, 66)])
+    pygame.draw.circle(s, (210, 20, 20), (120, 86), 9)
+    pygame.draw.ellipse(s, (150, 0, 10), (86, 94, 68, 28))
+    pygame.draw.line(s, (150, 0, 10), (88, 104), (76, 88), 4)
+    pygame.draw.line(s, (150, 0, 10), (152, 104), (164, 88), 4)
+    for k in range(8):
+        pygame.draw.polygon(s, (240, 236, 220), [(92 + k * 8, 104), (98 + k * 8, 104), (95 + k * 8, 112)])
+    random.seed()
+    return s, [(104, 66), (136, 66)]
+
+
+def _sp_flesh():
+    """الكتلة اللحمية: عيون كتير وخيوط وفم"""
+    random.seed(405)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    for k in range(9):                                       # مجسّات
+        sg = -1 if k % 2 else 1
+        x, y = 120 + sg * random.randint(30, 70), random.randint(150, 290)
+        pts = [(x, y)]
+        for _ in range(6):
+            x += sg * random.randint(6, 18)
+            y += random.randint(-22, 14)
+            pts.append((x, y))
+        pygame.draw.lines(s, (120, 28, 44), False, pts, random.randint(4, 9))
+    pygame.draw.ellipse(s, (146, 40, 54), (38, 60, 164, 266))
+    for _ in range(14):
+        x, y, r = random.randint(60, 180), random.randint(90, 300), random.randint(10, 26)
+        c = random.randint(-22, 22)
+        pygame.draw.ellipse(s, (146 + c, 40 + c // 2, 54 + c // 2), (x - r, y - r, 2 * r, int(r * 1.5)))
+    pygame.draw.ellipse(s, (30, 0, 6), (78, 232, 84, 62))
+    for k in range(7):
+        pygame.draw.polygon(s, (236, 230, 205), [(84 + k * 11, 240), (94 + k * 11, 240), (89 + k * 11, 258)])
+        pygame.draw.polygon(s, (236, 230, 205), [(84 + k * 11, 288), (94 + k * 11, 288), (89 + k * 11, 270)])
+    eyes = [(92, 130, 20), (148, 126, 20), (120, 178, 11), (70, 190, 9), (170, 186, 9), (104, 96, 8), (140, 98, 8)]
+    for ex, ey, r in eyes:
+        pygame.draw.circle(s, (236, 230, 220), (ex, ey), r)
+        pygame.draw.circle(s, (180, 20, 20), (ex, ey), max(3, int(r * 0.6)))
+        pygame.draw.circle(s, (0, 0, 0), (ex, ey), max(2, int(r * 0.3)))
+    random.seed()
+    return s, [(92, 130), (148, 126)]
+
+
+def _sp_skel():
+    """الهيكل المحروق: عضم ولهب"""
+    random.seed(406)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    bone = (226, 220, 196)
+    glow(s, 120, 170, 100, (255, 110, 10), 150)
+    pygame.draw.line(s, bone, (120, 100), (120, 236), 8)
+    for k in range(6):
+        pygame.draw.line(s, bone, (120, 116 + k * 16), (88 - k * 2, 130 + k * 16), 5)
+        pygame.draw.line(s, bone, (120, 116 + k * 16), (152 + k * 2, 130 + k * 16), 5)
+    pygame.draw.polygon(s, bone, [(96, 236), (144, 236), (136, 262), (104, 262)])
+    for sg in (-1, 1):
+        pygame.draw.lines(s, bone, False, [(120 + sg * 30, 112), (120 + sg * 54, 186), (120 + sg * 44, 250)], 6)
+        _claws(s, 120 + sg * 44, 250, sg, bone, 5, 16)
+        pygame.draw.lines(s, bone, False, [(120 + sg * 16, 262), (120 + sg * 22, 296), (120 + sg * 20, 326)], 7)
+    pygame.draw.ellipse(s, bone, (88, 26, 64, 70))
+    pygame.draw.rect(s, bone, (98, 86, 44, 22))
+    for k in range(5):
+        pygame.draw.line(s, (40, 36, 30), (102 + k * 9, 88), (102 + k * 9, 106), 1)
+    for ex in (100, 124):
+        pygame.draw.ellipse(s, (0, 0, 0), (ex, 52, 18, 24))
+    _flames(s, 120, 46, 80, 62, 8)
+    _flames(s, 120, 150, 110, 80, 9)
+    random.seed()
+    return s, [(109, 64), (133, 64)]
+
+
+def _jf_nun():
+    random.seed(501)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    pygame.draw.polygon(s, (6, 6, 10), [(26, 380), (58, 64), (150, 8), (242, 64), (274, 380)])
+    pygame.draw.polygon(s, (232, 232, 226), [(70, 330), (230, 330), (262, 380), (38, 380)])
+    pygame.draw.ellipse(s, (212, 212, 202), (80, 70, 140, 240))
+    pygame.draw.rect(s, (236, 236, 230), (72, 62, 156, 40))
+    for ex in (126, 174):
+        pygame.draw.ellipse(s, (0, 0, 0), (ex - 18, 140, 36, 50))
+        for _ in range(4):
+            pygame.draw.line(s, (130, 0, 0), (ex, 186), (ex + random.randint(-10, 10), 300), 3)
+        glow(s, ex, 164, 34, (255, 40, 40), 200)
+        pygame.draw.circle(s, (255, 230, 220), (ex, 164), 4)
+    pygame.draw.ellipse(s, (0, 0, 0), (118, 232, 64, 82))
+    for k in range(6):
+        pygame.draw.polygon(s, (232, 232, 216), [(122 + k * 10, 238), (130 + k * 10, 238), (126 + k * 10, 262)])
+        pygame.draw.polygon(s, (232, 232, 216), [(122 + k * 10, 308), (130 + k * 10, 308), (126 + k * 10, 288)])
+    random.seed()
+    return s
+
+
+def _jf_doll():
+    random.seed(502)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    for sg in (-1, 1):
+        for k in range(6):
+            pygame.draw.circle(s, (40, 22, 14), (150 + sg * 118, 70 + k * 46), 34)
+    pygame.draw.ellipse(s, (40, 22, 14), (30, 10, 240, 200))
+    pygame.draw.ellipse(s, (234, 226, 216), (50, 46, 200, 300))
+    for _ in range(11):
+        x, y = random.randint(70, 230), random.randint(70, 250)
+        pygame.draw.lines(s, (90, 80, 70), False, [(x, y), (x + random.randint(-20, 20), y + 24), (x + random.randint(-30, 30), y + random.randint(40, 70))], 2)
+    pygame.draw.circle(s, (8, 8, 8), (106, 150), 30)
+    pygame.draw.line(s, (230, 230, 230), (90, 134), (122, 166), 4)
+    pygame.draw.line(s, (230, 230, 230), (122, 134), (90, 166), 4)
+    pygame.draw.ellipse(s, (0, 0, 0), (168, 112, 58, 76))
+    glow(s, 197, 150, 34, (255, 50, 40), 210)
+    for cx in (80, 220):
+        pygame.draw.circle(s, (196, 80, 80), (cx, 222), 20)
+    pygame.draw.ellipse(s, (0, 0, 0), (92, 252, 116, 60))
+    for k in range(10):
+        pygame.draw.line(s, (234, 226, 216), (98 + k * 11, 252), (98 + k * 11, 270), 3)
+        pygame.draw.line(s, (120, 10, 10), (96 + k * 11, 244), (96 + k * 11, 322), 1)
+    random.seed()
+    return s
+
+
+def _jf_tall():
+    random.seed(503)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    for _ in range(14):
+        x, y = 150 + random.randint(-30, 30), 330
+        pts = [(x, y)]
+        for _k in range(7):
+            x += random.randint(-30, 30)
+            y -= random.randint(20, 46)
+            pts.append((x, y))
+        pygame.draw.lines(s, (6, 6, 8), False, pts, random.randint(3, 7))
+    pygame.draw.polygon(s, (10, 10, 14), [(20, 380), (60, 300), (240, 300), (280, 380)])
+    pygame.draw.polygon(s, (200, 200, 206), [(124, 300), (176, 300), (150, 380)])
+    pygame.draw.ellipse(s, (222, 222, 216), (86, 24, 128, 290))
+    for ex in (118, 182):
+        pygame.draw.ellipse(s, (40, 40, 44), (ex - 14, 130, 28, 12))
+        glow(s, ex, 136, 22, (255, 255, 255), 110)
+    pygame.draw.ellipse(s, (0, 0, 0), (110, 200, 80, 120))
+    for k in range(7):
+        pygame.draw.line(s, (200, 200, 190), (116 + k * 11, 204), (116 + k * 11, 214 + (k % 2) * 8), 2)
+    random.seed()
+    return s
+
+
+def _jf_clown():
+    random.seed(504)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    for sg in (-1, 1):
+        for k in range(6):
+            pygame.draw.circle(s, (196, 56, 20), (150 + sg * (104 + (k % 2) * 12), 60 + k * 44), 38)
+    pygame.draw.ellipse(s, (240, 236, 230), (56, 56, 188, 290))
+    for ex in (112, 188):
+        pygame.draw.polygon(s, (20, 8, 8), [(ex, 110), (ex + 28, 148), (ex, 186), (ex - 28, 148)])
+        glow(s, ex, 148, 26, (255, 220, 40), 230)
+        pygame.draw.line(s, (170, 0, 10), (ex - 30, 100), (ex + 24, 82), 5)
+    pygame.draw.circle(s, (210, 20, 20), (150, 204), 24)
+    pygame.draw.ellipse(s, (140, 0, 10), (60, 232, 180, 100))
+    pygame.draw.line(s, (140, 0, 10), (66, 252), (44, 208), 8)
+    pygame.draw.line(s, (140, 0, 10), (234, 252), (256, 208), 8)
+    for k in range(13):
+        pygame.draw.polygon(s, (240, 236, 220), [(74 + k * 12, 250), (86 + k * 12, 250), (80 + k * 12, 250 + random.randint(18, 34))])
+        pygame.draw.polygon(s, (240, 236, 220), [(74 + k * 12, 320), (86 + k * 12, 320), (80 + k * 12, 320 - random.randint(12, 26))])
+    random.seed()
+    return s
+
+
+def _jf_flesh():
+    random.seed(505)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (146, 40, 54), (14, 30, 272, 330))
+    for _ in range(22):
+        x, y, r = random.randint(40, 260), random.randint(60, 340), random.randint(14, 34)
+        c = random.randint(-24, 24)
+        pygame.draw.ellipse(s, (146 + c, 40 + c // 2, 54 + c // 2), (x - r, y - r, 2 * r, int(r * 1.4)))
+    for _ in range(10):
+        x, y = random.randint(60, 240), random.randint(70, 200)
+        pygame.draw.lines(s, (90, 10, 24), False, [(x, y), (x + random.randint(-30, 30), y + 34), (x + random.randint(-40, 40), y + 70)], 3)
+    placed = [(100, 130, 30), (206, 124, 30)]
+    for _ in range(40):
+        if len(placed) >= 13:
+            break
+        x, y, r = random.randint(50, 250), random.randint(70, 230), random.randint(11, 20)
+        if all(math.hypot(x - px, y - py) > r + pr + 4 for px, py, pr in placed):
+            placed.append((x, y, r))
+    for ex, ey, r in placed:
+        pygame.draw.circle(s, (236, 230, 220), (ex, ey), r)
+        pygame.draw.circle(s, (180, 20, 20), (ex, ey), max(4, int(r * 0.62)))
+        pygame.draw.circle(s, (0, 0, 0), (ex, ey), max(3, int(r * 0.32)))
+        glow(s, ex, ey, r + 8, (255, 40, 30), 90)
+    pygame.draw.ellipse(s, (26, 0, 6), (64, 248, 172, 100))
+    for k in range(10):
+        pygame.draw.polygon(s, (236, 230, 205), [(74 + k * 16, 256), (88 + k * 16, 256), (81 + k * 16, 282)])
+        pygame.draw.polygon(s, (236, 230, 205), [(74 + k * 16, 340), (88 + k * 16, 340), (81 + k * 16, 314)])
+    random.seed()
+    return s
+
+
+def _jf_skull():
+    random.seed(506)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    glow(s, 150, 190, 170, (255, 100, 10), 210)
+    _flames(s, 150, 320, 250, 250, 14)
+    pygame.draw.ellipse(s, (226, 220, 196), (72, 56, 156, 216))
+    pygame.draw.rect(s, (226, 220, 196), (104, 252, 92, 70), border_radius=10)
+    for k in range(7):
+        pygame.draw.line(s, (60, 50, 40), (110 + k * 13, 264), (110 + k * 13, 318), 2)
+    pygame.draw.line(s, (60, 50, 40), (104, 288), (196, 288), 2)
+    for ex in (122, 178):
+        pygame.draw.ellipse(s, (0, 0, 0), (ex - 24, 126, 48, 66))
+        glow(s, ex, 160, 36, (255, 170, 20), 240)
+        pygame.draw.circle(s, (255, 240, 180), (ex, 160), 5)
+    pygame.draw.polygon(s, (0, 0, 0), [(150, 206), (136, 238), (164, 238)])
+    for _ in range(8):
+        x, y = random.randint(90, 210), random.randint(70, 130)
+        pygame.draw.lines(s, (90, 76, 56), False, [(x, y), (x + random.randint(-14, 14), y + 20), (x + random.randint(-20, 20), y + 44)], 2)
+    _flames(s, 150, 76, 130, 84, 9)
+    random.seed()
+    return s
+
+
+def _sp_below():
+    """اللي تحت: كتلة سودا بدراعات طويلة ووش شاحب بعيون كتير"""
+    random.seed(407)
+    s = pygame.Surface((240, 330), pygame.SRCALPHA)
+    glow(s, 120, 190, 112, (120, 0, 20), 120)
+    for k in range(10):
+        sg = -1 if k % 2 else 1
+        x, y = 120 + sg * random.randint(30, 60), random.randint(110, 230)
+        pts = [(x, y)]
+        for _ in range(6):
+            x += sg * random.randint(8, 20)
+            y += random.randint(-30, 26)
+            pts.append((x, y))
+        pygame.draw.lines(s, (10, 6, 12), False, pts, random.randint(5, 10))
+        hx, hy = pts[-1]
+        for _f in range(4):
+            pygame.draw.line(s, (200, 196, 188), (hx, hy), (hx + sg * random.randint(6, 16), hy + random.randint(-12, 12)), 2)
+    pygame.draw.ellipse(s, (12, 8, 14), (46, 110, 148, 214))
+    for _ in range(12):
+        x, y = random.randint(60, 180), random.randint(200, 300)
+        pygame.draw.line(s, (12, 8, 14), (x, y), (x, y + random.randint(14, 30)), 4)
+    pygame.draw.ellipse(s, (206, 202, 190), (80, 20, 80, 120))
+    for ex, ey, r in ((104, 62, 9), (136, 62, 9), (110, 88, 6), (130, 88, 6), (120, 42, 5)):
+        pygame.draw.circle(s, (10, 0, 0), (ex, ey), r)
+        pygame.draw.circle(s, (200, 20, 20), (ex, ey), max(2, r // 2))
+    pygame.draw.ellipse(s, (20, 0, 6), (108, 102, 24, 38))
+    for k in range(5):
+        pygame.draw.line(s, (226, 222, 205), (111 + k * 4, 104), (111 + k * 4, 112), 1)
+        pygame.draw.line(s, (226, 222, 205), (111 + k * 4, 138), (111 + k * 4, 130), 1)
+    random.seed()
+    return s, [(104, 62), (136, 62), (110, 88), (130, 88)]
+
+
+def _jf_below():
+    random.seed(507)
+    s = pygame.Surface((300, 380), pygame.SRCALPHA)
+    glow(s, 150, 200, 210, (130, 0, 24), 170)
+    for k in range(16):
+        sg = -1 if k % 2 else 1
+        x, y = 150 + sg * random.randint(100, 150), random.randint(180, 380)
+        pts = [(x, y)]
+        for _ in range(6):
+            x -= sg * random.randint(10, 24)
+            y += random.randint(-40, 14)
+            pts.append((x, y))
+        pygame.draw.lines(s, (8, 4, 10), False, pts, random.randint(8, 14))
+        hx, hy = pts[-1]
+        for _f in range(5):
+            pygame.draw.line(s, (210, 206, 194), (hx, hy), (hx - sg * random.randint(10, 26), hy + random.randint(-18, 18)), 3)
+    pygame.draw.ellipse(s, (206, 202, 190), (62, 22, 176, 310))
+    for _ in range(9):
+        x, y = random.randint(90, 210), random.randint(40, 120)
+        pygame.draw.lines(s, (70, 60, 56), False, [(x, y), (x + random.randint(-16, 16), y + 30), (x + random.randint(-24, 24), y + 70)], 2)
+    for ex, ey, r in ((112, 118, 20), (188, 118, 20), (126, 170, 12), (174, 170, 12), (150, 82, 11), (150, 210, 8)):
+        pygame.draw.circle(s, (10, 0, 0), (ex, ey), r)
+        glow(s, ex, ey, r + 12, (255, 30, 30), 190)
+        pygame.draw.circle(s, (210, 20, 20), (ex, ey), max(3, r // 2))
+    pygame.draw.ellipse(s, (18, 0, 6), (112, 236, 76, 110))
+    for k in range(8):
+        pygame.draw.polygon(s, (230, 226, 208), [(116 + k * 9, 240), (124 + k * 9, 240), (120 + k * 9, 262)])
+        pygame.draw.polygon(s, (230, 226, 208), [(116 + k * 9, 340), (124 + k * 9, 340), (120 + k * 9, 318)])
+    random.seed()
+    return s
+
+
+# (الاسم، رسمة الجسم، رسمة الوش، لون العيون، قوّة التوهّج، السلوك، الطول)
+EXTRA_MONS = [
+    ("nun", _sp_nun, _jf_nun, (255, 40, 40), 0.9, "nun"),
+    ("doll", _sp_doll, _jf_doll, (255, 60, 50), 0.8, "doll"),
+    ("tall", _sp_tall, _jf_tall, (255, 255, 255), 0.45, "tall"),
+    ("clown", _sp_clown, _jf_clown, (255, 220, 40), 0.9, "clown"),
+    ("flesh", _sp_flesh, _jf_flesh, (255, 40, 30), 1.0, "flesh"),
+    ("skel", _sp_skel, _jf_skull, (255, 160, 20), 1.0, "fire"),
+    ("below", _sp_below, _jf_below, (255, 30, 30), 1.2, "boss", 250),
+]
+# صوت بيطلع مع كل وحش (بالترتيب: 0-3 الأصليين، 4-9 الجداد)
+MON_SOUND = {0: 'moan', 1: 'growl', 2: 'breath', 3: 'cry', 4: 'bell', 5: 'giggle', 6: 'static', 7: 'laugh', 8: 'rattle', 9: 'crunch', 10: 'chant'}
+
+
+def extra_amb(level):
+    """أصوات أجواء إضافية بتتضاف على القديمة حسب الشقة"""
+    k = ['wind', 'drip', 'scratch', 'clock', 'crow']
+    if level >= 2:
+        k += ['chains', 'dragging', 'moan', 'giggle', 'radio', 'knock3', 'doorknob', 'whistle', 'swing', 'flies']
+    if level >= 3:
+        k += ['growl', 'bell', 'glass', 'hiss', 'crunch', 'baby', 'phone', 'howl', 'chant', 'rattle', 'revwhisper', 'run']
+    return k
+
+
+def add_extra_monsters():
+    """بيضيف الوحوش الجداد لقايمة الوحوش (A['mons']) والخضّة (A['js']). كل الكود التاني بيشتغل عليهم لوحده"""
+    base = len(A['mons'])
+    for i, m in enumerate(A['mons']):                      # سلوك الوحوش الأصليين (الزومبي والشيطان والقاتل والعجوز)
+        m.setdefault('beh', ORIG_BEH[i] if (A.get('art') and i < len(ORIG_BEH)) else 'plain')
+    if len(A['js']) > base:
+        A['js'] = list(A['js'])[:base]
+    for k, ent in enumerate(EXTRA_MONS):
+        nm, spf, jff, col, pw, beh = ent[:6]
+        hgt = ent[6] if len(ent) > 6 else 165
+        try:
+            big, eyes = spf()
+            W, H = big.get_size()
+            ef = [(ex / W, ey / H) for ex, ey in eyes]
+            jface = jff()
+            fn_m, fn_j = "mon_%d.png" % (4 + k), "js_%d.png" % (4 + k)
+            if os.path.exists(asset(fn_m)):                    # صورة من عندك بتغلب الرسم بالكود
+                big = pygame.image.load(asset(fn_m)).convert_alpha()
+            if os.path.exists(asset(fn_j)):
+                jface = pygame.image.load(asset(fn_j)).convert_alpha()
+            h = hgt
+            spr = pygame.transform.smoothscale(big, (max(1, int(big.get_width() * h / big.get_height())), h))
+            A['mons'].append(dict(img=spr, eyes=ef, col=col, pw=pw, beh=beh))
+            A['js'].append(jface)
+        except Exception as ex:
+            print("extra monster failed:", nm, ex)
+    A['mon_big'] = {}
+
+
+# ================================================================= سلوك كل وحش
+ORIG_BEH = ['zombie', 'demon', 'killer', 'hag']
+# أول شقة بيظهر فيها كل نوع (عشان الشقق الأولى تبقى أهدى)
+BEH_LEVEL = {'zombie': 1, 'hag': 1, 'nun': 1, 'doll': 2, 'killer': 2, 'clown': 3, 'demon': 3, 'tall': 4, 'flesh': 5, 'fire': 6, 'boss': 99}
+BEH_HINT = {'zombie': "بطيء... بس الكشاف مش بيأثر عليه!",
+            'demon': "لما يزأر... اجري! هيهجم!",
+            'killer': "بيسمع خطواتك... وقّف مكانك!",
+            'hag': "بتختفي وتظهر أقرب منك!",
+            'nun': "بتقوى كل ما تخاف... اهدا!",
+            'doll': "بتنط ناحيتك... والكشاف بيجمّدها!",
+            'tall': "كل ما تبصله بتخاف أكتر... وكل ما تبعد عينك بيقرّب!",
+            'clown': "بيتلوّى وبيقف يضحك... استغل وقفته واجري!",
+            'flesh': "بطيء... بس رعبه بيوصل لبعيد!",
+            'fire': "سريع... بس بيحترق ويختفي بسرعة!"}
+
+
+def pick_mon(level):
+    """بيختار وحش مناسب للشقة (الأنواع الأخطر بتظهر في الشقق الأعلى)"""
+    ok = [i for i in range(nmon()) if BEH_LEVEL.get(mon_of(i).get('beh', 'plain'), 1) <= level]
+    return random.choice(ok or list(range(nmon())))
+
+
 def make_vignette():
     s = pygame.Surface((SW, SH), pygame.SRCALPHA)
     for k in range(70):
@@ -1515,6 +2486,36 @@ AMB_TEXT = {'creak': "سمعت صرير باب بيتفتح... في مكان م�
             'musicbox': "علبة موسيقى بتشتغل لوحدها...",
             'breath': "حاسس بنفس بارد ورا رقبتك...",
             'slam': "باب اتقفل بقوة في مكان ما!"}
+AMB_TEXT.update({'growl': "زمجرة... قريبة جداً!",
+                 'chains': "سلاسل بتتجرّ في الضلمة...",
+                 'dragging': "حاجة تقيلة بتتسحب على الأرض...",
+                 'scratch': "حد بيخربش الحيطة بضوافره...",
+                 'bell': "جرس بيدق... ومفيش جرس في البيت!",
+                 'wind': "ريح بتعوي... والشبابيك مقفولة!",
+                 'drip': "نقطة... نقطة... مياه بتنزل من فوق.",
+                 'glass': "إزاز اتكسر في الأوضة اللي جنبك!",
+                 'radio': "راديو بيتكلم لوحده... بصوت مش مفهوم.",
+                 'giggle': "ضحكة واطية... جاية من تحت السرير.",
+                 'moan': "أنين طويل... مش بشري.",
+                 'hiss': "فحيح جنب ودنك!",
+                 'crunch': "صوت عضم بيتكسّر..."})
+AMB_TEXT.update({'baby': "طفل بيعيّط... ومفيش أطفال في العمارة.",
+                 'flies': "دبّان كتير... جاي منين؟",
+                 'run': "حد بيجري ناحيتك في الضلمة!",
+                 'knock3': "تلات خبطات تقيلة على الباب...",
+                 'whistle': "حد بيصفّر لحن قديم...",
+                 'phone': "تليفون بيرن... والخط مقطوع من سنين.",
+                 'doorknob': "مقبض الباب بيتهز... من بره!",
+                 'clock': "ساعة بتدق... بس الساعات كلها واقفة.",
+                 'swing': "أرجوحة بتزيّ لوحدها...",
+                 'howl': "عواء بعيد... بيقرّب.",
+                 'crow': "غراب بينعق... جوه الشقة!",
+                 'chant': "ترتيل واطي... بلغة مش مفهومة.",
+                 'boom': "ضربة مرعبة!",
+                 'rattle': "حشرجة... جنبك مباشرة.",
+                 'revwhisper': "همس معكوس... بيقول اسمك؟"})
+LOUD_AMB = ('laugh', 'cry', 'musicbox', 'slam', 'knock', 'growl', 'giggle', 'moan', 'glass', 'bell', 'chains', 'hiss', 'crunch',
+            'baby', 'phone', 'knock3', 'howl', 'chant', 'rattle', 'run', 'revwhisper', 'doorknob')
 HALL_WORDS = ["وراك", "شايفك", "اطلع", "هو هنا"]
 DECAL_WORDS = ["اطلع", "هو وراك", "شايفك", "مش هتخرج", "متبصّش"]
 
@@ -1682,6 +2683,7 @@ class Game:
         self.net, self.net_on = None, False
         self.room_id, self.my_id, self.host_id, self.room_seed = "", None, None, 0
         self.players, self.peers, self.pending_ev = {}, {}, []
+        self.boss_on, self.pulse = False, 0.0
         self.inp, self.online_err, self.conn_t, self.ping_t, self.pos_t = "", "", 0.0, 0.0, 0.0
         self.after_profile, self.local_srv_msg = None, ""
         self.dead_ids, self.wipe_pending = set(), False
@@ -1738,8 +2740,29 @@ class Game:
             s.set_volume(max(0.0, min(1.0, vol * MASTER)))
             s.play()
 
-    def name_line(self):
-        return S(random.choice(NAME_LINES), n=self.name())
+    def name_line(self, nm=None):
+        return S(random.choice(NAME_LINES), n=nm or self.name())
+
+    def target_name(self):
+        """اللاعب اللي الوحش هينادي عليه (أونلاين: واحد من كل اللاعبين)"""
+        names = [n for n in self.players.values() if n] if self.net_on else []
+        return random.choice(names) if names else self.name()
+
+    def say_name(self, vol, name, mk=None):
+        """الوحش بينطق الاسم بوضوح، وطبقة الصوت بتختلف حسب نوع الوحش"""
+        if not AUDIO:
+            return
+        beh = mon_of(mk).get('beh', 'plain') if mk is not None else 'plain'
+        vt = {'doll': 'c', 'demon': 'd', 'flesh': 'd', 'tall': 'd', 'zombie': 'd', 'fire': 'd'}.get(beh, 'n')
+        s = SND.get('vn:%s:%s' % (name, vt)) or SND.get('vn:%s:n' % name)
+        if s is None:                                   # الصوت لسه مجهزش
+            if name == self.name():
+                self.voice(vol, 'voice')
+            else:
+                play('whisper', vol * 0.5)
+        elif s.get_num_channels() == 0:
+            s.set_volume(max(0.0, min(1.0, vol * MASTER)))
+            s.play()
 
     @property
     def fear(self):
@@ -1771,16 +2794,20 @@ class Game:
     # ------------------------------------------------ جلسة ومراحل
     def new_session(self):
         self.spare, self.battery, self.fear = 0, 100.0, 0.0
+        self.game_seed = random.randint(1, 10 ** 6)              # كل لعبة جديدة: شقق وأماكن مفاتيح مختلفة
         self.start_level(1)
 
     def start_level(self, n):
         self.level = n
-        self.lv = build_level1() if n == 1 else gen_level(n, self.room_seed if self.net_on else self.profile['seed'])
+        seed = self.room_seed if self.net_on else (getattr(self, 'game_seed', None) or self.profile['seed'])
+        self.lv = build_level1(seed) if n == 1 else gen_level(n, seed)
         self.objs = self.lv.objs
+        place_story(self.objs, n, seed)
         self.px, self.py = self.lv.start
         self.fx, self.fy = 0, -1
         self.inv, self.done, self.opened = set(), set(), set()
         self.ghosts = []
+        self.boss_on, self.pulse = False, 0.0
         D = diff(n)
         self.ghost_cd = D['gcd'] + 12
         self.cd = 10.0
@@ -1819,7 +2846,7 @@ class Game:
 
     def snapshot(self):
         return dict(profile=self.profile, game=dict(
-            level=self.level, px=self.px, py=self.py, fx=self.fx, fy=self.fy, inv=sorted(self.inv),
+            seed=getattr(self, 'game_seed', None), level=self.level, px=self.px, py=self.py, fx=self.fx, fy=self.fy, inv=sorted(self.inv),
             spare=self.spare, battery=self.battery, fear=self.fear, done=sorted(self.done),
             opened=sorted(self.opened), visited=sorted(self.visited),
             fired=[i for i, t in enumerate(self.lv.triggers) if t['fired']]))
@@ -1837,6 +2864,7 @@ class Game:
     def load_game(self):
         g = self.saved
         self.spare, self.battery, self._fear = g['spare'], g['battery'], min(float(g['fear']), 60.0)
+        self.game_seed = g.get('seed') or self.profile['seed']
         self.start_level(g['level'])
         self.px, self.py, self.fx, self.fy = g['px'], g['py'], g['fx'], g['fy']
         self.inv, self.done, self.opened = set(g['inv']), set(g['done']), set(g['opened'])
@@ -1880,7 +2908,7 @@ class Game:
             return
         self.dying, self.lose_why = True, why
         self.fear_full = False
-        mk = random.randrange(nmon()) if mk is None else mk
+        mk = rand_mk() if mk is None else mk
         self.js_face = A['js'][mk % len(A['js'])]
         self.js_t = self.js_dur = 1.8
         self.js_after, self.js_text = self.lose_screen, ""
@@ -1890,6 +2918,10 @@ class Game:
         self._fear = 100.0
         play('shriek')
         play('scare')
+        play('boom', 0.9)
+        ms = MON_SOUND.get(mk % nmon())
+        if ms:
+            play(ms, 0.8)
         self.voice(1.0, 'v_choir')
         self.emote('surprised', 1.0)
         self.emote('scared', 3.0)
@@ -2022,6 +3054,7 @@ class Game:
             self.net_on = True
             self.my_id, self.host_id, self.room_id = m.get('you'), m.get('host'), str(m.get('room'))
             self.players = {int(p[0]): str(p[1]) for p in m.get('players', [])}
+            prepare_names_async(list(self.players.values()))
             self.room_seed = int(m.get('seed', 1))
             self.dead_ids = set(m.get('dead', []))
             if m.get('started'):
@@ -2030,6 +3063,7 @@ class Game:
                 self.state = 'lobby'
         elif t == 'joined':
             self.players[m['id']] = str(m.get('name', ''))
+            prepare_names_async([self.players[m['id']]])
             self.toast(S("{n} دخل الغرفة", n=self.pname(m['id'])), 2.5)
         elif t == 'left':
             nm = self.pname(m['id'])
@@ -2288,7 +3322,7 @@ class Game:
             self.shake = 0.5
             self.fear = (self.fear + 14)
             self.toast("حاجة وقعت وراك!!", 2.5)
-            self.app = [self.px - self.fx * 150, self.py - self.fy * 150, 0.45, random.randrange(nmon())]
+            self.app = [self.px - self.fx * 150, self.py - self.fy * 150, 0.45, rand_mk()]
             if self.level >= 2 and random.random() < 0.4:
                 self.after(1.2, lambda: play('laugh', 0.6))
         elif kind == 'flicker':
@@ -2308,7 +3342,7 @@ class Game:
             play('whisper', 0.8)
             self.spawn_ghost(near=True, force=True)
         elif kind == 'dash':                       # ضلّ بيجري قدامك بسرعة
-            self.dash = dict(t=0.0, dur=0.55, dir=random.choice((-1, 1)), mk=random.randrange(nmon()))
+            self.dash = dict(t=0.0, dur=0.55, dir=random.choice((-1, 1)), mk=rand_mk())
             play('shriek', 0.8)
             play('bang', 0.5)
             self.shake = 0.5
@@ -2324,6 +3358,36 @@ class Game:
             self.fear = (self.fear + 6)
             self.spawn_eyes(random.choice((2, 3)), 160, 380)
             self.toast("حاسس إن في عيون بتبصلك من الضلمة...", 3)
+        elif kind == 'roar':                       # زئير ووحش بيجري قدامك
+            self.dash = dict(t=0.0, dur=0.7, dir=random.choice((-1, 1)), mk=rand_mk())
+            play(random.choice(('roar', 'growl')), 1.0)
+            play('thunder', 0.5)
+            play('boom', 0.7)
+            self.shake = 0.7
+            self.fear = (self.fear + 16)
+            self.toast("سمعت زئير مرعب!!", 2.5)
+        elif kind == 'scream':                     # صرخة ست قريبة وبعدها وش
+            play('scream', 1.0)
+            self.shake = 0.4
+            self.fear = (self.fear + 12)
+            self.toast("صرخة... قريبة جداً!", 2.5)
+            self.after(0.9, lambda: self.scare('flash') if (self.state == 'play' and self.js_t <= 0) else None)
+        elif kind == 'chorus':                     # ضلمة وكورال شياطين ووحش ورا ضهرك
+            self.blackout = 3.5
+            self.fear = (self.fear + 12)
+            play('choir', 0.9)
+            play('chant', 0.6)
+            play('wind', 0.6)
+            self.toast("أصوات كتير بتهمس في ودنك...", 3)
+            self.after(2.0, lambda: self.spawn_ghost(near=True, force=True))
+        elif kind == 'crawl':                      # حاجة بتزحف وراك
+            play('scratch', 0.9)
+            self.after(0.6, lambda: play('dragging', 0.8))
+            self.after(1.4, lambda: play('hiss', 0.9))
+            self.fear = (self.fear + 12)
+            self.shake = 0.3
+            self.toast("حاجة بتزحف ورا ضهرك...", 3)
+            self.app = [self.px - self.fx * 110, self.py - self.fy * 110, 0.9, rand_mk()]
         elif kind == 'watch':                      # شبح بيتحرك لما تدير ضهرك
             if self.spawn_watcher():
                 self.fear = (self.fear + 6)
@@ -2354,7 +3418,7 @@ class Game:
             play('bang', 0.6)
             play('heart', 1.0)
             self.after(0.45, lambda: play('heart', 1.0))
-            self.app = [self.px - self.fx * 70, self.py - self.fy * 70, 1.6, random.randrange(nmon())]
+            self.app = [self.px - self.fx * 70, self.py - self.fy * 70, 1.6, rand_mk()]
             self.say = [nm, 2.4]
         self.after(5.4, behind)
         self.after(7.6, lambda: apply_volume())
@@ -2365,14 +3429,19 @@ class Game:
         """احتمال خضّة وإنت بتقلّب في حاجة (بتزيد مع المراحل)"""
         if self.cd > 0 or random.random() > min(0.35, 0.08 + 0.025 * self.level):
             return None
-        return random.choice(['face', 'face', 'bang', 'bang', 'flicker', 'flicker', 'dash', 'knock', 'eyes'])
+        pool = ['face', 'face', 'bang', 'bang', 'flicker', 'flicker', 'dash', 'knock', 'eyes']
+        if self.level >= 2:
+            pool += ['scream', 'crawl']
+        if self.level >= 3:
+            pool += ['roar', 'chorus']
+        return random.choice(pool)
 
     def ambient(self, kind):
         play(kind, 0.6 if kind in ('creak', 'whisper', 'step') else 0.8)
         if kind in ('slam', 'knock'):
             self.shake = max(self.shake, 0.3)
         self.toast(AMB_TEXT[kind], 3)
-        self.fear = (self.fear + (5 if kind in ('laugh', 'cry', 'musicbox', 'slam', 'knock') else 3))
+        self.fear = (self.fear + (5 if kind in LOUD_AMB else 3))
 
     def first_visit(self):
         """أول مرة تدخل أوضة: ساعات حاجة بتحصل"""
@@ -2380,7 +3449,7 @@ class Game:
             return
         if random.random() < (0.22 if self.level == 1 else 0.38):
             self.sc_cd = random.uniform(20, 35)
-            kinds = ['slam', 'slam', 'knock', 'breath']
+            kinds = ['slam', 'slam', 'knock', 'breath'] + extra_amb(self.level)
             if self.level >= 2:
                 kinds += ['laugh', 'cry']
             if self.level >= 3:
@@ -2446,7 +3515,7 @@ class Game:
                 best = dist
             if best >= 160:
                 self.ghosts.append(dict(x=self.px + self.fx * sgn * best, y=self.py + self.fy * sgn * best,
-                                        a=0.0, life=20.0, say=None, kind='watch', t=1.2, mk=random.randrange(nmon())))
+                                        a=0.0, life=20.0, say=None, kind='watch', t=1.2, mk=rand_mk()))
                 play('whisper', 0.6)
                 self.toast("فيه حاجة واقفة في الضلمة... متدّيش ضهرك!", 3.5)
                 return True
@@ -2481,6 +3550,183 @@ class Game:
             return True
         return False
 
+    def ghost_move(self, g, dt, d, facing, D):
+        """سلوك الوحش حسب نوعه. بيرجّع (سرعة، الكشاف بيطرده؟، مضاعف الخوف، حركة جانبية)"""
+        beh = mon_of(g.get('mk', 0)).get('beh', 'plain')
+        base = 62 + D['gspd'] + self.fear * 0.2
+        lit = self.flash_ok() and d < 240 and facing > 0.6          # الكشاف عليه
+        sp, rep, aura, lat = base, lit, 1.0, 0.0
+        if beh == 'zombie':                       # بطيء وعنيد: الكشاف مش بيطرده
+            sp, rep = base * (0.33 if lit else 0.55), False
+            g['life'] += dt * 0.4
+            if random.random() < dt * 0.2 and d < 450:
+                play('moan', 0.5 * (1 - d / 450))
+        elif beh == 'demon':                      # بيستنى... بيزأر... وبعدين بيهجم
+            g['bt'] = g.get('bt', random.uniform(3, 5)) - dt
+            rep = False
+            if g.get('charge', 0.0) > 0:
+                g['charge'] -= dt
+                sp = base * 3.0
+            elif g.get('warn', 0.0) > 0:
+                g['warn'] -= dt
+                sp = 0.0
+                if g['warn'] <= 0:
+                    g['charge'] = 1.3
+            else:
+                sp, rep = base * 0.5, lit
+                if g['bt'] <= 0 and d < 420 and g['a'] > 0.3:
+                    g['bt'] = random.uniform(6, 9)
+                    g['warn'] = 0.9
+                    play('roar', 0.8)
+                    self.shake = max(self.shake, 0.4)
+                    self.fear = (self.fear + 6)
+        elif beh == 'killer':                     # بيسمع خطواتك: ساكن لو وقفت، وبيتجمّد في الكشاف
+            rep = False
+            if lit:
+                sp = 0.0
+            elif self.moving:
+                sp = base * 1.8
+            else:
+                sp = base * 0.3
+        elif beh == 'hag':                        # بتختفي وتظهر أقرب
+            sp = base * 0.3 if not lit else -45
+            g['bl'] = g.get('bl', random.uniform(3, 5)) - dt
+            if g['bl'] <= 0 and d > 150:
+                g['bl'] = random.uniform(4, 7)
+                k = random.uniform(0.35, 0.55)
+                g['x'] += (self.px - g['x']) * k
+                g['y'] += (self.py - g['y']) * k
+                g['a'] = 0.1
+                play('cry', 0.5)
+                self.fear = (self.fear + 4)
+        elif beh == 'nun':                        # بتتغذّى على خوفك
+            sp = base * min(2.1, 0.4 + self.fear / 55.0)
+            if random.random() < dt * 0.15 and d < 420:
+                play('bell', 0.45)
+        elif beh == 'doll':                       # نطّات متقطعة وضحك، والكشاف بيجمّدها
+            rep, sp = False, 0.0
+            g['stun'] = 1.6 if lit else g.get('stun', 0.0) - dt
+            g['hop'] = g.get('hop', random.uniform(0.3, 0.8)) - dt
+            if g['hop'] <= 0 and g['stun'] <= 0 and g['a'] > 0.2:
+                g['hop'] = random.uniform(0.7, 1.1)
+                stp = 70 + D['gspd'] * 0.6
+                g['x'] += (self.px - g['x']) / d * stp
+                g['y'] += (self.py - g['y']) / d * stp
+                if random.random() < 0.5:
+                    play('giggle', 0.4)
+        elif beh == 'tall':                       # كل ما تبصله بتخاف... وكل ما تبعد عينك بيقرّب
+            rep = False
+            if facing > 0.6 and d < 420:
+                sp = base * 0.4
+                self.fear = (self.fear + 9 * dt)
+                if random.random() < dt * 0.4:
+                    self.glitch_t = max(self.glitch_t, 0.1)
+                    play('static', 0.4)
+            else:
+                sp = base * 1.2
+        elif beh == 'clown':                      # بيتلوّى وبيقف يضحك
+            rep = False
+            g['pz'] = g.get('pz', random.uniform(2, 4)) - dt
+            if g['pz'] <= 0:
+                if g.get('stop', 0.0) <= 0:
+                    g['stop'] = 1.0
+                    play('laugh', 0.6)
+                    self.fear = (self.fear + 3)
+                g['stop'] -= dt
+                if g['stop'] <= 0:
+                    g['pz'] = random.uniform(3, 5)
+                sp = 0.0
+            else:
+                sp = base * 1.15
+                lat = base * 0.9 * math.cos(self.t * 3.2 + g.get('ph', 0.0))
+        elif beh == 'flesh':                      # بطيء بس رعبه واسع
+            sp, rep, aura = base * (0.15 if lit else 0.3), False, 2.2
+            g['life'] += dt * 0.5
+            if random.random() < dt * 0.15 and d < 450:
+                play('dragging', 0.4)
+        elif beh == 'fire':                       # سريع بس بيحترق
+            sp, rep = base * 1.5, False
+            g['life'] -= dt * 0.8
+            if random.random() < dt * 0.6 and d < 450:
+                play('crunch', 0.35)
+        elif beh == 'boss':                       # اللي تحت: 3 مراحل (زحف، زئير وهجوم، جري)
+            g['age'] = g.get('age', 0.0) + dt
+            g['life'] = 99.0
+            ph = 1 if g['age'] < 25 else (2 if g['age'] < 55 else 3)
+            if ph != g.get('phase'):
+                g['phase'] = ph
+                self.boss_phase(ph)
+            rep, aura = False, 1.3
+            self.voice_cd = min(self.voice_cd, 5.0)               # بينادي الأسماء كتير
+            slow = 0.45 if lit else 1.0                           # الكشاف بيبطّئه
+            if ph == 1:
+                sp = base * 0.95 * slow
+            elif ph == 2:
+                g['bt'] = g.get('bt', 4.0) - dt
+                if g.get('charge', 0.0) > 0:
+                    g['charge'] -= dt
+                    sp = base * 3.0
+                elif g.get('warn', 0.0) > 0:
+                    g['warn'] -= dt
+                    sp = 0.0
+                    if g['warn'] <= 0:
+                        g['charge'] = 1.3
+                else:
+                    sp = base * 0.9 * slow
+                    if g['bt'] <= 0:
+                        g['bt'] = random.uniform(6, 8)
+                        g['warn'] = 0.9
+                        play('roar', 1.0)
+                        self.shake = max(self.shake, 0.5)
+            else:
+                sp = base * 1.3 * slow
+                if random.random() < dt * 0.35:
+                    self.glitch_t = max(self.glitch_t, 0.15)
+        return sp, rep, aura, lat
+
+    def boss_phase(self, ph):
+        if ph == 1:
+            self.toast("اللي تحت صحي... اجري على الباب!", 4)
+            play('chant', 0.8)
+        elif ph == 2:
+            self.toast("بيزأر!... استعد!", 3)
+            play('roar', 1.0)
+            play('boom', 0.8)
+            self.blackout = max(self.blackout, 1.5)
+            self.shake = 0.7
+            self.fear = (self.fear + 10)
+        else:
+            self.toast("مفيش وقت... بيجري ناحيتك!", 3)
+            play('scream', 0.8)
+            play('boom', 0.9)
+            self.blackout = max(self.blackout, 1.2)
+            self.shake = 0.8
+            self.fear = (self.fear + 12)
+
+    def start_boss(self):
+        """الشقة 10: أول ما تفتح الدرج الأخير... اللي تحت بيصحى"""
+        if self.boss_on or self.level != MAX_LEVEL or self.state != 'play':
+            return
+        mk = next((i for i in range(nmon()) if mon_of(i).get('beh') == 'boss'), None)
+        if mk is None:
+            return
+        self.boss_on = True
+        self.ghosts = []
+        pos = None
+        for _ in range(80):
+            tx, ty = random.choice(self.lv.floors)
+            x, y = tx * T + 16, ty * T + 16
+            if 450 < math.hypot(x - self.px, y - self.py) < 900:
+                pos = (x, y)
+                break
+        x, y = pos or (self.px - self.fx * 500, self.py - self.fy * 500)
+        self.ghosts.append(dict(x=x, y=y, a=0.2, life=99.0, say=None, mk=mk, ph=0.0, boss=True))
+        self.blackout = 2.0
+        self.shake = 0.6
+        play('thunder')
+        play('boom')
+        self.fear = (self.fear + 8)
+
     def add_decals(self):
         """بعد ما النور يرجع: كتابة بالدم وبصمات إيد ظهرت"""
         new = []
@@ -2509,6 +3755,8 @@ class Game:
             self.after(1.0, lambda: play('whisper', 0.6))
 
     def spawn_ghost(self, near=False, force=False):
+        if self.boss_on:
+            return
         D = diff(self.level)
         if not force and len(self.ghosts) >= D['gmax'] + self.extra_ghosts():
             return
@@ -2523,15 +3771,24 @@ class Game:
                 x, y = tx * T + 16, ty * T + 16
                 if 380 < math.hypot(x - self.px, y - self.py) < 700:
                     break
-        g = dict(x=x, y=y, a=0.3 if near else 0.0, life=14.0, say=None, mk=random.randrange(nmon()))
+        g = dict(x=x, y=y, a=0.3 if near else 0.0, life=14.0, say=None, mk=pick_mon(self.level), ph=random.random() * 6.28)
         if self.level >= 2 and random.random() < 0.6:
-            g['say'] = [self.name_line(), 5.0]
-            self.after(0.8, lambda: self.voice(0.7, 'v_whisper'))
+            nm = self.target_name()
+            g['say'] = [self.name_line(nm), 5.0]
+            self.after(0.8, lambda nm=nm, mk=g['mk']: self.say_name(0.85, nm, mk))
         self.ghosts.append(g)
         self.ghost_cd = random.uniform(0.7, 1.2) * D['gcd']
         if not near:
             self.toast("حاسس إن في حد بيراقبك...", 3)
         play('whisper', 0.7)
+        ms = MON_SOUND.get(g['mk'] % nmon())
+        if ms:
+            self.after(0.6, lambda ms=ms: play(ms, 0.55))
+        bh = mon_of(g['mk']).get('beh')
+        seen = self.__dict__.setdefault('seen_beh', set())
+        if bh in BEH_HINT and bh not in seen:               # أول مرة تقابل النوع ده: تلميح عن طريقته
+            seen.add(bh)
+            self.after(3.4, lambda t=BEH_HINT[bh]: self.toast(t, 4.0) if self.state == 'play' else None)
 
     # ------------------------------------------------ تفاعل
     def nearest(self):
@@ -2646,7 +3903,8 @@ class Game:
         def show():
             on = None
             if o.finale:
-                on = lambda: (self.scare('flicker'), self.after(2.0, lambda: self.scare('face')))
+                on = lambda: (self.scare('flicker'), self.after(2.0, lambda: self.scare('face')),
+                              self.after(4.5, self.start_boss) if self.level == MAX_LEVEL else None)
             self.dialog(o.title, o.lines, on_close=on)
         if o.scare == 'face':
             self.scare('face', after=show)
@@ -2822,7 +4080,7 @@ class Game:
                         self.after(0.8, lambda: self.spawn_eyes(1, 110, 190))
 
         # الأشباح
-        if len(self.ghosts) < D['gmax'] + self.extra_ghosts():
+        if len(self.ghosts) < D['gmax'] + self.extra_ghosts() and not self.boss_on:
             self.ghost_cd -= dt
             if self.ghost_cd <= 0:
                 self.spawn_ghost()
@@ -2843,26 +4101,25 @@ class Game:
             if g['a'] <= 0 and g['life'] <= 0:
                 self.ghosts.remove(g)
                 continue
-            rep = self.flash_ok() and d < 240 and facing > 0.6
+            sp, rep, aura, lat = self.ghost_move(g, dt, d, facing, D)
             if rep:
                 self.emote('angry', 0.6)
-            sp = -45 if rep else 62 + D['gspd'] + self.fear * 0.2
-            if rep:
+                sp = -45
                 g['life'] -= dt * 2.5
-            g['x'] += gx / d * sp * dt
-            g['y'] += gy / d * sp * dt
-            if d < 320:
-                self.fear = (self.fear + 7 * dt)
+            g['x'] += gx / d * sp * dt - gy / d * lat * dt
+            g['y'] += gy / d * sp * dt + gx / d * lat * dt
+            if d < (420 if aura > 1 else 320):
+                self.fear = (self.fear + 7 * aura * dt)
                 if random.random() < dt * 0.4:
                     play('whisper', 0.6 * (1 - d / 320))
                 if d < 220 and random.random() < dt * 0.15:
                     play('breath', 0.5 * (1 - d / 220))
             if d < 300 and g['a'] > 0.4 and self.voice_cd <= 0:
                 self.voice_cd = random.uniform(7, 12)
-                g['say'] = [self.name_line(), 3.5]
-                kv = 'v_whisper' if d > 170 else ('v_child' if (self.level >= 4 and random.random() < 0.3) else 'voice')
-                self.voice(min(1.0, 1.15 - d / 300), kv)
-            if d < 26 and g['a'] > 0.5:
+                nm = self.target_name()
+                g['say'] = [self.name_line(nm), 3.5]
+                self.say_name(max(0.6, min(1.0, 1.3 - d / 300)), nm, g.get('mk'))
+            if d < (44 if g.get('boss') else 26) and g['a'] > 0.5:
                 self.lose('monster', g.get('mk'))
                 break
 
@@ -2879,11 +4136,15 @@ class Game:
         if self.fear_full or self.fear >= FEAR_LOSE - 0.01:      # العداد اتملى = خسرت
             self.lose('fear')
             return
-        if self.fear > 35:
+        near = min([math.hypot(g['x'] - self.px, g['y'] - self.py) for g in self.ghosts if g.get('a', 1.0) > 0.25] or [9999.0])
+        inten = max(self.fear / 100.0, max(0.0, 1 - near / 520.0))        # قلبك بيدق أسرع كل ما الوحش يقرّب
+        self.pulse = max(0.0, self.pulse - dt * 2.5)
+        if inten > 0.3:
             self.heart_t -= dt
             if self.heart_t <= 0:
-                play('heart', self.fear / 100 + 0.2)
-                self.heart_t = 1.2 - 0.7 * self.fear / 100
+                play('heart', 0.25 + 0.75 * inten)
+                self.heart_t = 1.3 - 0.85 * inten
+                self.pulse = inten
 
         # الشموع بتطفي لوحدها
         self.snuff_cd -= dt
@@ -2903,7 +4164,7 @@ class Game:
         self.amb -= dt
         if self.amb <= 0:
             self.amb = random.uniform(0.7, 1.2) * D['amb']
-            kinds = ['creak', 'whisper', 'step', 'knock', 'breath']
+            kinds = ['creak', 'whisper', 'step', 'knock', 'breath'] + extra_amb(self.level)
             if self.level >= 2:
                 kinds += ['cry', 'laugh', 'slam']
             if self.level >= 3:
@@ -3102,7 +4363,7 @@ class Game:
         if self.hall:                                                 # هلوسة سريعة
             _t, kind, hx, hy, word = self.hall
             if kind == 'ghost':
-                draw_ghost(s, hx, hy + 90, 150, self.t, int(hx) % nmon())
+                draw_ghost(s, hx, hy + 90, 150, self.t, int(hx) % max(1, nmon() - 1))
             elif kind == 'word':
                 draw_text(s, word, 64, (200, 10, 10), hx, hy, 'c')
             else:
@@ -3111,6 +4372,13 @@ class Game:
         if self.say:
             draw_text(s, self.say[0], 52, (200, 20, 20), SW // 2 + random.randint(-4, 4),
                       SH // 2 - 130 + random.randint(-4, 4), 'c')
+        if self.pulse > 0.03 and self.state == 'play':                     # نبضة حمرا مع كل دقّة قلب
+            pv = A.get('pulse')
+            if pv is None:
+                pv = A['pulse'] = pygame.Surface((SW, SH))
+                pv.fill((150, 0, 0))
+            pv.set_alpha(int(80 * self.pulse))
+            s.blit(pv, (0, 0))
         if self.fear > 5:
             pulse = 1.0 + (0.12 * math.sin(self.t * (4 + self.fear / 15)) if self.fear > 40 else 0.0)
             A['vig'].set_alpha(min(255, int(255 * min(1, self.fear / 100) * pulse)))
@@ -3509,6 +4777,8 @@ class Game:
         draw_text(s, S("الشقة {n}", n=n), 80, col((200, 30, 30)), SW // 2 + random.randint(-2, 2), 190, 'c')
         draw_text(s, "المفتاح فتح الباب... وقدامك شقة تانية.", 28, col((210, 200, 190)), SW // 2, 320, 'c')
         draw_text(s, S("عدد الأوض: {n}", n=cells), 28, col((240, 200, 100)), SW // 2, 370, 'c')
+        if n in CHAPTER:
+            draw_text(s, CHAPTER[n], 26, col((170, 150, 190)), SW // 2, 490, 'c')
         if n >= 6:
             draw_text(s, "الأشباح هنا أكتر... خلّي بالك.", 24, col((200, 90, 90)), SW // 2, 430, 'c')
         elif n >= 3:
@@ -3716,6 +4986,7 @@ class Game:
             draw_text(s, S("برافو يا {n}... عديت الشقق العشرة!", n=self.name()), 32, (50, 50, 50), SW // 2, 270, 'c')
             draw_text(s, "طلع عليك نور الفجر... والبيوت ورا ضهرك ساكتة.", 26, (50, 50, 50), SW // 2, 330, 'c')
             draw_text(s, S("بس سمعت همس بيقول: \"{n}... استنّى\"", n=self.name()), 26, (130, 40, 40), SW // 2, 380, 'c')
+            draw_text(s, STORY_END, 24, (110, 40, 40), SW // 2, 432, 'c')
             draw_text(s, "المس الشاشة للرجوع للقايمة" if TOUCH else "Enter: القايمة الرئيسية      Esc: خروج", 26, (60, 60, 60), SW // 2, 500, 'c')
 
     # ------------------------------------------------ أحداث
@@ -4312,6 +5583,7 @@ def setup():
     A['ghost_big_f'] = pygame.transform.flip(A['ghost_big'], True, False)
     A['vig'] = make_vignette()
     load_art()
+    add_extra_monsters()
     return screen
 
 
@@ -4754,6 +6026,144 @@ EN.update({
 'خسرت - بتتفرج على: {n}': 'You lost - watching: {n}',
 'هتتفرج على صحابك...': "You'll watch your friends...",
 '◄ ► / A D: غيّر اللي بتتفرج عليه   |   T: شات': '◄ ► / A D: switch who you watch   |   T: chat',
+})
+
+
+EN.update({
+"زمجرة... قريبة جداً!": "A growl... very close!",
+"سلاسل بتتجرّ في الضلمة...": "Chains dragging in the dark...",
+"حاجة تقيلة بتتسحب على الأرض...": "Something heavy is being dragged across the floor...",
+"حد بيخربش الحيطة بضوافره...": "Someone is clawing at the wall...",
+"جرس بيدق... ومفيش جرس في البيت!": "A bell is ringing... and there is no bell in this house!",
+"ريح بتعوي... والشبابيك مقفولة!": "The wind howls... and the windows are shut!",
+"نقطة... نقطة... مياه بتنزل من فوق.": "Drip... drip... water falling from above.",
+"إزاز اتكسر في الأوضة اللي جنبك!": "Glass shattered in the next room!",
+"راديو بيتكلم لوحده... بصوت مش مفهوم.": "A radio talks by itself... in a garbled voice.",
+"ضحكة واطية... جاية من تحت السرير.": "A low giggle... from under the bed.",
+"أنين طويل... مش بشري.": "A long moan... not human.",
+"فحيح جنب ودنك!": "A hiss right next to your ear!",
+"صوت عضم بيتكسّر...": "The sound of bones cracking...",
+"سمعت زئير مرعب!!": "You heard a terrifying roar!!",
+"صرخة... قريبة جداً!": "A scream... very close!",
+"أصوات كتير بتهمس في ودنك...": "Many voices whisper in your ear...",
+"حاجة بتزحف ورا ضهرك...": "Something is crawling behind you...",
+})
+
+
+EN.update({
+'كارت قديم': 'Old business card',
+'د. عادل الحكيم - طبيب أطفال': 'Dr. Adel El-Hakim - Pediatrician',
+'الشقة 1 - عمارة الهمس - 1987': 'Apartment 1 - Whispering Building - 1987',
+'جواب ماتبعتش': 'A letter never sent',
+'حبيبتي سلمى، انتقلنا النهارده.': 'My dear Salma, we moved in today.',
+'العمارة هادية أوي... هادية زيادة.': 'The building is so quiet... too quiet.',
+'دفتر ليلى': "Layla's notebook",
+'صاحبي الجديد ساكن في الحيطة.': 'My new friend lives in the wall.',
+'بيقول اسمه "اللي تحت". بيحب الاستغماية.': 'He says his name is "The One Below". He loves hide and seek.',
+'تحذير': 'A warning',
+'عم رضوان قال: "متنزلوش البدروم بالليل".': 'Uncle Radwan said: "Never go down to the basement at night."',
+'ومرضيش يقول ليه.': "He wouldn't say why.",
+'ورقة صفرا': 'Yellowed paper',
+'العمارة اتبنت فوق بير قديم.': 'The building was built over an old well.',
+'كانوا بيرموا فيه كل اللي مش عايزينه... حتى ناس.': "They threw in everything they didn't want... even people.",
+'دفتر عادل': "Adel's notebook",
+'سلمى بتسمع همس بالليل.': 'Salma hears whispers at night.',
+'قلتلها أعصاب. كنت غلطان.': 'I told her it was nerves. I was wrong.',
+'رسمة بالشمع': 'Crayon drawing',
+'ليلى رسمت بيتنا... وفي الأرض بير.': 'Layla drew our house... with a well in the ground.',
+'وحوالين البير ناس كتير واقفين.': 'And many people standing around it.',
+'رسالة عم رضوان': "Uncle Radwan's message",
+'أنا حاولت أقفل البير بالأسمنت سنين.': 'I tried sealing the well with concrete for years.',
+'كل مرة يرجع يتفتح من تحت.': 'Every time, it reopens from below.',
+'سلمى اختفت امبارح. بابها مقفول من جوه.': 'Salma vanished yesterday. Her door is locked from inside.',
+'والبوليس قال: "سافرت". هي مسافرتش.': 'The police said: "She left." She did not.',
+'علبة موسيقى': 'Music box',
+'مكتوب تحتها: "لسلمى... عشان تنامي".': 'Written underneath: "For Salma... so you can sleep."',
+'واللحن بيشتغل لوحده من يومها.': 'The tune has played by itself ever since.',
+'ورقة مبلولة': 'Damp paper',
+'سمعتها بتنادي عليا من تحت.': 'I heard her calling me from below.',
+'بس بتقول جملة واحدة: "ما تجيش".': 'But she only says one thing: "Don\'t come."',
+'ماما بتلعب معانا استغماية دلوقتي.': 'Mama plays hide and seek with us now.',
+'بس هي دايمًا اللي بتستخبى.': 'But she is always the one hiding.',
+'تقرير طبي': 'Medical report',
+'المريض: عادل الحكيم. بيسمع أصوات.': 'Patient: Adel El-Hakim. Hears voices.',
+'النوم: صفر. التوصية: يسيب العمارة فورًا.': 'Sleep: none. Recommendation: leave the building at once.',
+'ورقة بخط مرتعش': 'Shaky handwriting',
+'ليلى مش بتنام في سريرها.': "Layla doesn't sleep in her bed.",
+'بلاقيها واقفة قدام الحيطة... بتبتسم.': 'I find her standing before the wall... smiling.',
+'نزلت البدروم. البير مفتوح.': 'I went down to the basement. The well is open.',
+'وفيه سلم نازل لتحت... والتحت مضلّم.': 'There are stairs going down... and it is dark below.',
+'نقش على الحيطة': 'Carving on the wall',
+'"اللي بيفتح البير بيسكن العمارة للأبد".': '"Whoever opens the well lives in the building forever."',
+'وتحتها أسماء كتير... آخرها: عادل.': 'Below it, many names... the last one: Adel.',
+'ورقة من عادل': 'A page from Adel',
+'مش قادر أخرج. كل باب بيطلّعني شقة تانية.': "I can't get out. Every door leads to another apartment.",
+'كنت فاكر إني بدوّر على سلمى وليلى...': 'I thought I was searching for Salma and Layla...',
+'اعتراف': 'Confession',
+'الحقيقة: مفيش حد خطفهم.': 'The truth: nobody kidnapped them.',
+'أنا اللي فتحت البير... وهما دخلوا وراي.': 'I opened the well... and they followed me in.',
+'الصفحة الأخيرة': 'The last page',
+'كل واحد يدخل العمارة فاكر إنه بيهرب.': 'Everyone who enters thinks they are escaping.',
+'بس العمارة هي اللي بتختار مين يطلع.': 'But the building decides who gets out.',
+'بخط ليلى': "In Layla's handwriting",
+'لو وصلت هنا... هو مش عايز يخرّجك.': "If you made it here... he doesn't want to let you out.",
+'عايزك تلعب معاه. افتح الباب واجري.': 'He wants you to play with him. Open the door and run.',
+'الفصل 2: صاحب ليلى اللي في الحيطة': "Chapter 2: Layla's friend in the wall",
+'الفصل 3: البير': 'Chapter 3: The Well',
+'الفصل 4: الرسمة': 'Chapter 4: The Drawing',
+'الفصل 5: اختفاء سلمى': 'Chapter 5: Salma Vanishes',
+'الفصل 6: اللي بينادي من تحت': 'Chapter 6: The Voice From Below',
+'الفصل 7: ليلى مبتنامش': "Chapter 7: Layla Doesn't Sleep",
+'الفصل 8: السلم': 'Chapter 8: The Stairs',
+'الفصل 9: الحقيقة': 'Chapter 9: The Truth',
+'الفصل 10: اللي بيختار': 'Chapter 10: The One Who Chooses',
+'وفي دفتر عادل القديم... اتكتب سطر جديد باسمك.': "In Adel's old notebook... a new line was written with your name.",
+})
+
+
+EN.update({
+'بطيء... بس الكشاف مش بيأثر عليه!': "Slow... but the flashlight doesn't affect it!",
+'لما يزأر... اجري! هيهجم!': "When it roars... run! It's about to charge!",
+'بيسمع خطواتك... وقّف مكانك!': 'It hears your footsteps... stand still!',
+'بتختفي وتظهر أقرب منك!': 'She vanishes and reappears closer!',
+'بتقوى كل ما تخاف... اهدا!': 'She grows stronger as you fear... stay calm!',
+'بتنط ناحيتك... والكشاف بيجمّدها!': 'She hops toward you... the flashlight freezes her!',
+'كل ما تبصله بتخاف أكتر... وكل ما تبعد عينك بيقرّب!': 'The more you look, the more you fear... look away and he closes in!',
+'بيتلوّى وبيقف يضحك... استغل وقفته واجري!': 'It weaves and stops to laugh... use the pause and run!',
+'بطيء... بس رعبه بيوصل لبعيد!': 'Slow... but its dread reaches far!',
+'سريع... بس بيحترق ويختفي بسرعة!': 'Fast... but it burns out quickly!',
+})
+
+
+EN.update({
+'طفل بيعيّط... ومفيش أطفال في العمارة.': 'A child is crying... and there are no children in the building.',
+'دبّان كتير... جاي منين؟': 'So many flies... where are they coming from?',
+'حد بيجري ناحيتك في الضلمة!': 'Someone is running toward you in the dark!',
+'تلات خبطات تقيلة على الباب...': 'Three heavy knocks on the door...',
+'حد بيصفّر لحن قديم...': 'Someone is whistling an old tune...',
+'تليفون بيرن... والخط مقطوع من سنين.': 'A phone is ringing... the line has been dead for years.',
+'مقبض الباب بيتهز... من بره!': 'The doorknob is shaking... from outside!',
+'ساعة بتدق... بس الساعات كلها واقفة.': 'A clock chimes... but every clock has stopped.',
+'أرجوحة بتزيّ لوحدها...': 'A swing creaks by itself...',
+'عواء بعيد... بيقرّب.': 'A distant howl... getting closer.',
+'غراب بينعق... جوه الشقة!': 'A crow caws... inside the apartment!',
+'ترتيل واطي... بلغة مش مفهومة.': 'A low chant... in an unknown language.',
+'ضربة مرعبة!': 'A terrifying crash!',
+'حشرجة... جنبك مباشرة.': 'A death rattle... right beside you.',
+'همس معكوس... بيقول اسمك؟': 'Reversed whispers... saying your name?',
+})
+
+
+EN.update({
+'اللي تحت صحي... اجري على الباب!': 'The One Below has awoken... run for the door!',
+'بيزأر!... استعد!': 'It roars!... brace yourself!',
+'مفيش وقت... بيجري ناحيتك!': "No time... it's running at you!",
+'ورقة قديمة...': 'An old paper...',
+'ورقة مطوية': 'Folded paper',
+'ورقة بين الكتب': 'Paper between the books',
+'مفتاح المكتب النحاسي مخبّي {h}.': 'The brass study key is hidden {h}.',
+'المفتاح الصغير بتاع الدُرج... {h}.': 'The small drawer key... {h}.',
+'في {f} في {r}': 'in the {f} in the {r}',
 })
 
 
